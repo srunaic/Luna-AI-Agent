@@ -517,8 +517,14 @@ ipcMain.handle('check-updates-now', async () => {
     }
     lastUpdateCheckedAt = new Date().toISOString();
     sendUpdateStatus({ state: 'checking' });
-    await autoUpdater.checkForUpdatesAndNotify();
-    return { success: true, message: 'Update check triggered.' };
+    // Use checkForUpdates so we can return a deterministic result message
+    const result = await autoUpdater.checkForUpdates();
+    const info = result?.updateInfo;
+    if (info?.version) {
+      // update-available / update-not-available events will still fire
+      return { success: true, message: `Checked. Latest: v${info.version}` };
+    }
+    return { success: true, message: 'Checked for updates.' };
   } catch (e) {
     sendUpdateStatus({ state: 'error', message: e?.message || String(e) });
     return { success: false, message: e?.message || String(e) };

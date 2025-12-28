@@ -526,6 +526,21 @@ function setupIPCListeners() {
                 data: payload
             }, '*');
         }
+
+        // Also reflect into Settings modal if open (so user sees result immediately)
+        try {
+            const overlay = document.getElementById('settings-overlay');
+            const statusEl = document.getElementById('settings-status');
+            const versionEl = document.getElementById('app-version');
+            if (versionEl && payload?.currentVersion) {
+                versionEl.textContent = `v${payload.currentVersion}`;
+            }
+            if (overlay && overlay.classList.contains('show') && statusEl) {
+                const checkedAt = payload?.checkedAt ? ` (last check: ${payload.checkedAt})` : '';
+                const extra = payload?.availableVersion ? ` (available: v${payload.availableVersion})` : '';
+                statusEl.textContent = `Update status: ${payload?.state || 'idle'}${extra}${checkedAt}`;
+            }
+        } catch (_) {}
     });
 }
 
