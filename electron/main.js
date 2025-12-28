@@ -58,6 +58,13 @@ function defaultSettings() {
     },
     luna: {
       apiKey: ''
+    },
+    vllm: {
+      host: '127.0.0.1',
+      port: 8000,
+      model: 'facebook/opt-125m',
+      numPredict: 1024,
+      temperature: 0.1
     }
   };
 }
@@ -194,6 +201,29 @@ function checkLunaCoreOnce(timeoutMs = 700) {
   });
 }
 
+function checkVLLMOnce(timeoutMs = 700) {
+  return new Promise((resolve) => {
+    const cfg = (llmSettings?.vllm || defaultSettings().vllm);
+    const host = (cfg.host || '127.0.0.1').trim();
+    const req = http.request(
+      {
+        hostname: host,
+        port: Number(cfg.port || 8000),
+        path: '/v1/models', // vLLM 포트 생존 확인
+        method: 'GET'
+      },
+      (res) => {
+        const ok = res.statusCode >= 200 && res.statusCode < 300;
+        res.resume();
+        resolve(ok);
+      }
+    );
+    req.on('error', () => resolve(false));
+    req.setTimeout(timeoutMs, () => { try { req.destroy(); } catch (_) { } resolve(false); });
+    req.end();
+  });
+}
+
 function checkOpenAIOnce(timeoutMs = 1200) {
   const cfg = (llmSettings?.openai || defaultSettings().openai);
   let baseUrl = cfg.baseUrl || 'https://api.openai.com';
@@ -274,6 +304,17 @@ async function checkLLMOnce() {
       connected,
       model: activeModel,
       message: connected ? `${displayName} Connected` : `${displayName} Not Reachable (localhost:${port})`
+    };
+  }
+
+  if (activeModel === 'vllm') {
+    const connected = await checkVLLMOnce();
+    const cfg = (llmSettings?.vllm || defaultSettings().vllm);
+    return {
+      provider: 'vLLM',
+      connected,
+      model: activeModel,
+      message: connected ? 'vLLM Connected' : `vLLM Not Reachable (${cfg.host}:${cfg.port})`
     };
   }
 

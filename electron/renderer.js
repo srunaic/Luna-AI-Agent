@@ -713,6 +713,9 @@ async function openSettingsModal() {
     const baseUrlEl = document.getElementById('openai-baseUrl');
     const apiKeyEl = document.getElementById('openai-apiKey');
     const lunaApiKeyEl = document.getElementById('luna-apiKey');
+    const vllmHostEl = document.getElementById('vllm-host');
+    const vllmPortEl = document.getElementById('vllm-port');
+    const vllmModelEl = document.getElementById('vllm-model');
     const systemInstructionsEl = document.getElementById('luna-system-instructions');
     const firewallBtn = document.getElementById('ollama-firewall-allow');
     const statusEl = document.getElementById('settings-status');
@@ -734,6 +737,9 @@ async function openSettingsModal() {
     if (baseUrlEl) baseUrlEl.value = settings?.openai?.baseUrl ?? 'https://api.openai.com';
     if (apiKeyEl) apiKeyEl.value = settings?.openai?.apiKey ?? '';
     if (lunaApiKeyEl) lunaApiKeyEl.value = settings?.luna?.apiKey ?? '';
+    if (vllmHostEl) vllmHostEl.value = settings?.vllm?.host ?? '127.0.0.1';
+    if (vllmPortEl) vllmPortEl.value = String(settings?.vllm?.port ?? 8000);
+    if (vllmModelEl) vllmModelEl.value = settings?.vllm?.model ?? 'facebook/opt-125m';
     if (systemInstructionsEl) systemInstructionsEl.value = settings?.systemInstructions ?? '';
     if (statusEl) statusEl.textContent = '';
 
@@ -768,6 +774,13 @@ async function openSettingsModal() {
             },
             luna: {
                 apiKey: (lunaApiKeyEl?.value || '').trim()
+            },
+            vllm: {
+                host: (vllmHostEl?.value || '127.0.0.1').trim(),
+                port: Number((vllmPortEl?.value || '8000').trim()),
+                model: (vllmModelEl?.value || 'facebook/opt-125m').trim(),
+                numPredict: settings?.vllm?.numPredict ?? 1024,
+                temperature: settings?.vllm?.temperature ?? 0.1
             },
             systemInstructions: (systemInstructionsEl?.value || '').trim()
         };

@@ -71,6 +71,7 @@ export function ChatInput({ onExecute, onCancel, isExecuting, editorContext, onM
           className="model-select"
         >
           <option value="ollama">Ollama (Local)</option>
+          <option value="vllm">vLLM (High Speed) ⚡</option>
           <option value="luna-soul">Luna Soul ✨</option>
           <option value="gpt-4o">GPT-4o</option>
           <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>

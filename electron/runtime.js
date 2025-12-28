@@ -23,6 +23,8 @@ class AgentRuntime {
                 let fullText = "";
                 if (model === 'ollama' || model === 'luna-soul') {
                     fullText = await this.callLunaCore(instruction, context, onResponse, true); // directMode: true
+                } else if (model === 'vllm') {
+                    fullText = await this.callVLLM(instruction, context, onResponse, true);
                 } else if (model === 'openai') {
                     fullText = await this.callOpenAI(instruction, context, onResponse);
                 } else if (model === 'luna-cloud') {
@@ -47,6 +49,8 @@ class AgentRuntime {
                 let responseText = "";
                 if (model === 'ollama' || model === 'luna-soul') {
                     responseText = await this.callLunaCore(instruction, { ...context, history }, onResponse);
+                } else if (model === 'vllm') {
+                    responseText = await this.callVLLM(instruction, { ...context, history }, onResponse);
                 } else if (model === 'openai') {
                     responseText = await this.callOpenAI(instruction, { ...context, history }, onResponse);
                 } else if (model === 'luna-cloud') {
@@ -220,19 +224,21 @@ class AgentRuntime {
             const numPredict = Number(cfg.numPredict || 1024); // Increased for reasoning
             const temperature = Number(cfg.temperature ?? 0.1);
 
+            // Luna Soul은 스트리밍 없이 한 번에 응답을 생성하여 "팍" 나오도록 설정
+            const isLunaSoul = modelName === 'luna-soul';
             const payload = {
                 model: modelName,
                 prompt: prompt,
-                stream: true,
+                stream: !isLunaSoul, // Luna Soul은 스트리밍 OFF (한 번에 팍!)
                 options: {
-                    num_predict: numPredict,
-                    temperature,
-                    num_ctx: 2048, // Slightly increased for protocol stability
-                    top_k: 10,
-                    top_p: 0.5,
+                    num_predict: isLunaSoul ? Math.min(numPredict, 512) : numPredict, // Luna Soul은 짧고 강력하게
+                    temperature: isLunaSoul ? 0.05 : temperature, // 더 결정적이고 빠른 응답
+                    num_ctx: isLunaSoul ? 1024 : 2048, // Luna Soul은 컨텍스트도 최적화
+                    top_k: isLunaSoul ? 5 : 10, // 더 빠른 샘플링
+                    top_p: isLunaSoul ? 0.3 : 0.5, // 더 좁은 확률 분포
                     repeat_penalty: 1.1
                 },
-                keep_alive: "5m"
+                keep_alive: isLunaSoul ? "10m" : "5m" // Luna Soul은 더 오래 메모리에 유지
             };
             const data = JSON.stringify(payload);
             const dataBytes = Buffer.byteLength(data, 'utf8');
@@ -314,6 +320,84 @@ class AgentRuntime {
                 reject(new Error("Luna Soul LLM 응답 타임아웃 (120초). 고도의 오케스트레이션 중 메모리 부하가 발생했거나 로딩이 늦어지고 있습니다. 잠시 후 다시 시도해 주세요."));
             });
 
+            req.write(data);
+            req.end();
+        });
+    }
+
+    async callVLLM(instruction, context, onResponse, directMode = false) {
+        const prompt = directMode ? instruction : this.buildPrompt(instruction, context);
+
+        return new Promise((resolve, reject) => {
+            const cfg = context.llmSettings?.vllm || {};
+            const host = cfg.host || '127.0.0.1';
+            const port = Number(cfg.port || 8000);
+            const modelName = cfg.model || 'facebook/opt-125m'; // vLLM에서 로드된 모델명
+
+            const payload = {
+                model: modelName,
+                prompt: prompt,
+                stream: true,
+                max_tokens: Number(cfg.numPredict || 1024),
+                temperature: Number(cfg.temperature ?? 0.1),
+                stop: ["THOUGHT:", "TOOL:", "ANSWER:", "\n\n\n"] // 무한루프 방지용 스탑 시퀀스
+            };
+
+            const data = JSON.stringify(payload);
+            const options = {
+                hostname: host,
+                port,
+                path: '/v1/completions',
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Content-Length': Buffer.byteLength(data)
+                }
+            };
+
+            const req = http.request(options, (res) => {
+                if (res.statusCode !== 200) {
+                    let body = '';
+                    res.on('data', chunk => body += chunk);
+                    res.on('end', () => reject(new Error(`vLLM Error ${res.statusCode}: ${body}`)));
+                    return;
+                }
+
+                let fullText = "";
+                let buffer = "";
+                let firstToken = true;
+
+                res.on('data', (chunk) => {
+                    if (firstToken) {
+                        onResponse({ type: 'status', data: { state: 'typing', message: '', isPartial: true, taskId: context.taskId } });
+                        firstToken = false;
+                    }
+
+                    const lines = (buffer + chunk.toString()).split('\n');
+                    buffer = lines.pop(); // 마지막 미완성 라인 버퍼링
+
+                    for (const line of lines) {
+                        const cleanLine = line.trim();
+                        if (!cleanLine.startsWith('data: ')) continue;
+                        const dataStr = cleanLine.substring(6);
+                        if (dataStr === '[DONE]') continue;
+
+                        try {
+                            const json = JSON.parse(dataStr);
+                            if (json.choices?.[0]?.text) {
+                                const text = json.choices[0].text;
+                                fullText += text;
+                                onResponse({ type: 'status', data: { state: 'typing', message: fullText, isPartial: true, taskId: context.taskId } });
+                            }
+                        } catch (e) { }
+                    }
+                });
+
+                res.on('end', () => resolve(fullText));
+            });
+
+            req.on('error', e => reject(new Error(`vLLM 연결 실패: ${e.message}`)));
+            req.setTimeout(60000, () => { req.destroy(); reject(new Error("vLLM 응답 타임아웃")); });
             req.write(data);
             req.end();
         });
