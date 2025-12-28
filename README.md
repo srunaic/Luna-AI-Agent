@@ -35,10 +35,31 @@ AI-powered 코드 편집기 프로젝트의 Phase 0 구현체입니다. **Luna A
 1. **빌드 및 패키징**
 ```bash
 npm install
-npm run package-electron
+npm run build-electron-win
 ```
 2. **실행**
-- `dist-electron/Luna AI Agent-win32-x64/Luna AI Agent.exe` 실행
+- `dist-electron/Luna AI Agent Setup 0.1.0.exe` 설치 후 실행
+
+## Releases / Auto Update (Windows)
+
+Luna는 **GitHub Releases** 기반으로 버전 업데이트를 배포합니다. (설치된 앱은 자동 업데이트 체크/다운로드 후 재시작 적용)
+
+### 새 버전 배포 방법
+
+1. `package.json`의 `version`을 올립니다
+2. 커밋 & 푸시
+3. `vX.Y.Z` 형태로 태그를 푸시합니다 (예: `v0.1.1`)
+
+```bash
+git add package.json
+git commit -m "chore: release v0.1.1"
+git push
+
+git tag v0.1.1
+git push origin v0.1.1
+```
+
+태그 푸시 시 GitHub Actions가 Windows 설치파일과 `latest.yml`을 자동으로 Release에 업로드합니다.
 
 ### VSCode Extension 모드
 1. `npm run compile`
