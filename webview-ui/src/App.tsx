@@ -15,6 +15,16 @@ interface AgentStore {
   editorContext: EditorContext | null;
   llmConnected: boolean;
   llmProvider: string | null;
+  update: {
+    state: 'idle' | 'checking' | 'available' | 'none' | 'downloading' | 'downloaded' | 'error';
+    progress?: {
+      percent?: number;
+      bytesPerSecond?: number;
+      transferred?: number;
+      total?: number;
+    };
+    message?: string;
+  };
 }
 
 interface ActionLogEntry {
@@ -34,7 +44,8 @@ function App() {
     status: 'idle',
     editorContext: null,
     llmConnected: false,
-    llmProvider: null
+    llmProvider: null,
+    update: { state: 'idle' }
   });
 
   const [bridge] = useState(() => new WebviewBridge());
@@ -94,6 +105,17 @@ function App() {
           }));
           break;
 
+        case 'update_status':
+          setStore(prev => ({
+            ...prev,
+            update: {
+              state: message.data?.state || 'idle',
+              progress: message.data?.progress,
+              message: message.data?.message
+            }
+          }));
+          break;
+
         case 'editor_state_update':
           setStore(prev => ({
             ...prev,
@@ -142,7 +164,12 @@ function App() {
         </div>
 
         <div className="chat-footer">
-          <StatusBar status={store.status} llmConnected={store.llmConnected} llmProvider={store.llmProvider} />
+          <StatusBar
+            status={store.status}
+            llmConnected={store.llmConnected}
+            llmProvider={store.llmProvider}
+            update={store.update}
+          />
           <ChatInput
             onExecute={handleExecuteTask}
             onCancel={handleCancelTask}

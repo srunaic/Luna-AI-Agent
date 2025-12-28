@@ -1,6 +1,8 @@
 .status-bar {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 }
 
 .status-indicator {
@@ -24,6 +26,28 @@
 
 .animate-pulse {
   animation: pulse 1.5s infinite;
+}
+
+.update-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 45%;
+}
+
+.update-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+}
+
+.update-text {
+  font-weight: 500;
 }
 
 @keyframes pulse {
