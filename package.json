@@ -91,7 +91,10 @@
     },
     "publish": [
       {
-        "provider": "github"
+        "provider": "github",
+        "owner": "srunaic",
+        "repo": "Luna-AI-Agent",
+        "private": true
       }
     ],
     "mac": {
