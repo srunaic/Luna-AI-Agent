@@ -86,11 +86,18 @@ class AgentRuntime {
             const host = rawHost.toLowerCase() === 'localhost' ? '127.0.0.1' : rawHost;
             const port = Number(cfg.port || 11434);
             const protocol = (cfg.protocol === 'https') ? 'https' : 'http';
+            const modelName = String(cfg.model || 'llama3');
+            const numPredict = Number(cfg.numPredict || 256);
+            const temperature = Number(cfg.temperature ?? 0.2);
 
             const data = JSON.stringify({
-                model: 'llama3', // Default local model
+                model: modelName,
                 prompt: prompt,
-                stream: false
+                stream: false,
+                options: {
+                    num_predict: numPredict,
+                    temperature
+                }
             });
 
             const options = {
@@ -141,7 +148,10 @@ Context:
 ${fileContext}${selectionContext}
 User Instruction: ${instruction}
 
-Please provide your response. If you suggest code changes, wrap them in triple backticks.`;
+Rules:
+- Be concise and actionable.
+- If you suggest code changes, wrap ONLY the changed code in triple backticks.
+- Do not include hidden chain-of-thought.`;
     }
 
     delay(ms) {

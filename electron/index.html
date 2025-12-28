@@ -550,6 +550,21 @@
                     <input id="ollama-port" placeholder="11434" />
                 </div>
                 <div class="field-row">
+                    <label for="ollama-model">Model</label>
+                    <input id="ollama-model" placeholder="llama3" />
+                    <div class="field-hint">예: llama3 / llama3.2:3b / qwen2.5-coder:7b (ollama list로 확인)</div>
+                </div>
+                <div class="field-row">
+                    <label for="ollama-numPredict">Max tokens</label>
+                    <input id="ollama-numPredict" placeholder="256" />
+                    <div class="field-hint">생성 토큰 제한(낮을수록 빠름). 예: 128~512</div>
+                </div>
+                <div class="field-row">
+                    <label for="ollama-temperature">Temperature</label>
+                    <input id="ollama-temperature" placeholder="0.2" />
+                    <div class="field-hint">0.0~1.0 (낮을수록 더 결정적/대체로 빠름)</div>
+                </div>
+                <div class="field-row">
                     <label></label>
                     <button id="ollama-firewall-allow" class="btn" style="justify-self:start;">Allow in Windows Firewall</button>
                     <div class="field-hint">연결이 막힐 때(보안/방화벽) 11434 포트를 허용 규칙으로 추가합니다.</div>

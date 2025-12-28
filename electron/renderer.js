@@ -687,6 +687,9 @@ async function openSettingsModal() {
 
     const hostEl = document.getElementById('ollama-host');
     const portEl = document.getElementById('ollama-port');
+    const modelEl = document.getElementById('ollama-model');
+    const numPredictEl = document.getElementById('ollama-numPredict');
+    const temperatureEl = document.getElementById('ollama-temperature');
     const baseUrlEl = document.getElementById('openai-baseUrl');
     const apiKeyEl = document.getElementById('openai-apiKey');
     const firewallBtn = document.getElementById('ollama-firewall-allow');
@@ -703,6 +706,9 @@ async function openSettingsModal() {
     const settings = await window.electronAPI.getSettings();
     if (hostEl) hostEl.value = settings?.ollama?.host ?? 'localhost';
     if (portEl) portEl.value = String(settings?.ollama?.port ?? 11434);
+    if (modelEl) modelEl.value = String(settings?.ollama?.model ?? 'llama3');
+    if (numPredictEl) numPredictEl.value = String(settings?.ollama?.numPredict ?? 256);
+    if (temperatureEl) temperatureEl.value = String(settings?.ollama?.temperature ?? 0.2);
     if (baseUrlEl) baseUrlEl.value = settings?.openai?.baseUrl ?? 'https://api.openai.com';
     if (apiKeyEl) apiKeyEl.value = settings?.openai?.apiKey ?? '';
     if (statusEl) statusEl.textContent = '';
@@ -727,7 +733,10 @@ async function openSettingsModal() {
         const next = {
             ollama: {
                 host: (hostEl?.value || 'localhost').trim(),
-                port: Number((portEl?.value || '11434').trim())
+                port: Number((portEl?.value || '11434').trim()),
+                model: (modelEl?.value || 'llama3').trim(),
+                numPredict: Number((numPredictEl?.value || '256').trim()),
+                temperature: Number((temperatureEl?.value || '0.2').trim())
             },
             openai: {
                 baseUrl: (baseUrlEl?.value || 'https://api.openai.com').trim(),

@@ -44,7 +44,13 @@ function defaultSettings() {
     ollama: {
       protocol: 'http',
       host: 'localhost',
-      port: 11434
+      port: 11434,
+      // Local Ollama model name (must exist in `ollama list`)
+      model: 'llama3',
+      // Speed: limit generated tokens to reduce latency (higher = slower)
+      numPredict: 256,
+      // Optional: creativity/speed tradeoff (0.0-1.0)
+      temperature: 0.2
     },
     openai: {
       baseUrl: 'https://api.openai.com',
@@ -471,7 +477,10 @@ ipcMain.handle('set-settings', async (_event, next) => {
   merged.ollama = {
     protocol: merged.ollama?.protocol === 'https' ? 'https' : 'http',
     host: String(merged.ollama?.host || 'localhost'),
-    port: Number(merged.ollama?.port || 11434)
+    port: Number(merged.ollama?.port || 11434),
+    model: String(merged.ollama?.model || 'llama3'),
+    numPredict: Number(merged.ollama?.numPredict || 256),
+    temperature: Number(merged.ollama?.temperature ?? 0.2)
   };
   merged.openai = {
     baseUrl: String(merged.openai?.baseUrl || 'https://api.openai.com'),
