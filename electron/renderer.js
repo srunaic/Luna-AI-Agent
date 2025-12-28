@@ -317,6 +317,9 @@ function setupIPCListeners() {
         } else if (message.type === 'cancel_task') {
             const taskId = message.data?.taskId || activeTaskId;
             if (taskId) window.electronAPI.cancelTask(taskId);
+        } else if (message.type === 'set_model') {
+            const model = message.data?.model;
+            if (model) window.electronAPI.send('set-model', { model });
         }
     });
 

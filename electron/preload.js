@@ -43,7 +43,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Generic send
   send: (channel, data) => {
-    const validChannels = ['popout-chat', 'update-editor-state', 'terminal-input'];
+    const validChannels = ['popout-chat', 'update-editor-state', 'terminal-input', 'set-model'];
     if (validChannels.includes(channel)) {
       ipcRenderer.send(channel, data);
     }

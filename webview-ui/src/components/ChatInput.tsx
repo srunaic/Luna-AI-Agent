@@ -7,9 +7,10 @@ interface ChatInputProps {
   onCancel: () => void;
   isExecuting: boolean;
   editorContext: EditorContext | null;
+  onModelChange: (model: string) => void;
 }
 
-export function ChatInput({ onExecute, onCancel, isExecuting, editorContext }: ChatInputProps) {
+export function ChatInput({ onExecute, onCancel, isExecuting, editorContext, onModelChange }: ChatInputProps) {
   const [instruction, setInstruction] = useState('');
   const [model, setModel] = useState('ollama'); // Default model
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -61,7 +62,11 @@ export function ChatInput({ onExecute, onCancel, isExecuting, editorContext }: C
         <select 
           id="model-select" 
           value={model} 
-          onChange={(e) => setModel(e.target.value)}
+          onChange={(e) => {
+            const next = e.target.value;
+            setModel(next);
+            onModelChange(next);
+          }}
           disabled={isExecuting}
           className="model-select"
         >

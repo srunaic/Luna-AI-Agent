@@ -102,6 +102,14 @@ export class WebviewBridge {
     });
   }
 
+  public setModel(model: string): void {
+    const message: WebviewToExtensionMessage = {
+      type: 'set_model',
+      data: { model }
+    };
+    this.vscode.postMessage(message);
+  }
+
   public cancelTask(taskId: string): void {
     const message: WebviewToExtensionMessage = {
       type: 'cancel_task',

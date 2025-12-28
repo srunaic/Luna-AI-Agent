@@ -31,7 +31,7 @@ export interface PlanStep {
 export type AgentState = 'idle' | 'thinking' | 'planning' | 'executing' | 'editing' | 'running' | 'failed';
 
 export interface WebviewToExtensionMessage {
-  type: 'get_editor_context' | 'execute_task' | 'cancel_task';
+  type: 'get_editor_context' | 'execute_task' | 'cancel_task' | 'set_model';
   data?: any;
 }
 

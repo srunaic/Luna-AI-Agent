@@ -56,6 +56,9 @@ function App() {
       setStore(prev => ({ ...prev, editorContext: context }));
     });
 
+    // Default model auto-connect on startup
+    bridge.setModel('ollama');
+
     // Listen for messages from extension
     const cleanup = bridge.onMessage((message: any) => {
       switch (message.type) {
@@ -131,6 +134,10 @@ function App() {
     return cleanup;
   }, []);
 
+  const handleModelChange = (model: string) => {
+    bridge.setModel(model);
+  };
+
   const handleExecuteTask = async (instruction: string, model: string) => {
     try {
       setStore(prev => ({ ...prev, status: 'thinking' }));
@@ -175,6 +182,7 @@ function App() {
             onCancel={handleCancelTask}
             isExecuting={store.status !== 'idle'}
             editorContext={store.editorContext}
+            onModelChange={handleModelChange}
           />
         </div>
       </div>

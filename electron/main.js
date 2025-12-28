@@ -4,6 +4,7 @@ const fs = require('fs');
 const { spawn, execSync } = require('child_process');
 const { AgentRuntime } = require('./runtime');
 const http = require('http');
+const https = require('https');
 const log = require('electron-log');
 const { autoUpdater } = require('electron-updater');
 
@@ -24,6 +25,7 @@ let ptyProcess;
 const agentRuntime = new AgentRuntime();
 let llmHealthInterval = null;
 let lastLLMConnected = null;
+let activeModel = 'ollama';
 let updateCheckInterval = null;
 let globalEditorState = {
   openFiles: [],
@@ -94,6 +96,10 @@ function sendLLMConnectionStatus(payload) {
   if (chatWindow) chatWindow.webContents.send('llm-connection', payload);
 }
 
+function isOpenAIModel(model) {
+  return typeof model === 'string' && model.toLowerCase().startsWith('gpt');
+}
+
 function checkOllamaOnce(timeoutMs = 700) {
   return new Promise((resolve) => {
     const req = http.request(
@@ -120,18 +126,98 @@ function checkOllamaOnce(timeoutMs = 700) {
   });
 }
 
+function checkOpenAIOnce(timeoutMs = 1200) {
+  const key =
+    process.env.LUNA_OPENAI_API_KEY ||
+    process.env.OPENAI_API_KEY ||
+    '';
+
+  if (!key) {
+    return Promise.resolve({
+      provider: 'openai',
+      connected: false,
+      message: 'OpenAI API key missing (set OPENAI_API_KEY or LUNA_OPENAI_API_KEY)'
+    });
+  }
+
+  return new Promise((resolve) => {
+    const req = https.request(
+      {
+        hostname: 'api.openai.com',
+        port: 443,
+        path: '/v1/models',
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${key}`
+        }
+      },
+      (res) => {
+        const ok = res.statusCode >= 200 && res.statusCode < 300;
+        const unauthorized = res.statusCode === 401 || res.statusCode === 403;
+        res.resume();
+        resolve({
+          provider: 'openai',
+          connected: ok,
+          message: ok
+            ? 'OpenAI connected'
+            : unauthorized
+              ? 'OpenAI auth failed (check API key)'
+              : `OpenAI not reachable (status ${res.statusCode})`
+        });
+      }
+    );
+
+    req.on('error', (e) => resolve({
+      provider: 'openai',
+      connected: false,
+      message: `OpenAI connection failed: ${e.message}`
+    }));
+    req.setTimeout(timeoutMs, () => {
+      try { req.destroy(); } catch (_) {}
+      resolve({
+        provider: 'openai',
+        connected: false,
+        message: 'OpenAI connection timeout'
+      });
+    });
+    req.end();
+  });
+}
+
+async function checkLLMOnce() {
+  if (activeModel === 'ollama') {
+    const connected = await checkOllamaOnce();
+    return {
+      provider: 'ollama',
+      connected,
+      model: activeModel,
+      message: connected ? 'Ollama connected' : 'Ollama not reachable (localhost:11434)'
+    };
+  }
+
+  if (isOpenAIModel(activeModel)) {
+    const status = await checkOpenAIOnce();
+    return { ...status, model: activeModel };
+  }
+
+  return {
+    provider: activeModel,
+    connected: false,
+    model: activeModel,
+    message: `Unknown model provider: ${activeModel}`
+  };
+}
+
 function startLLMHealthMonitor() {
   if (llmHealthInterval) return;
 
   const tick = async () => {
-    const connected = await checkOllamaOnce();
-    if (connected !== lastLLMConnected) {
+    const status = await checkLLMOnce();
+    const connected = !!status.connected;
+    const changed = connected !== lastLLMConnected;
+    if (changed) {
       lastLLMConnected = connected;
-      sendLLMConnectionStatus({
-        provider: 'ollama',
-        connected,
-        message: connected ? 'Ollama connected' : 'Ollama not reachable (localhost:11434)'
-      });
+      sendLLMConnectionStatus(status);
     }
   };
 
@@ -272,6 +358,18 @@ function createChatWindow() {
 
 ipcMain.on('popout-chat', () => {
   createChatWindow();
+});
+
+// Model selection from UI -> switch health check target
+ipcMain.on('set-model', async (_event, payload) => {
+  const next = payload?.model;
+  if (!next || typeof next !== 'string') return;
+  activeModel = next;
+  // Force refresh
+  lastLLMConnected = null;
+  const status = await checkLLMOnce();
+  lastLLMConnected = !!status.connected;
+  sendLLMConnectionStatus(status);
 });
 
 function setupMenu() {
