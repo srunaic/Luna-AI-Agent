@@ -93,8 +93,7 @@
       {
         "provider": "github",
         "owner": "srunaic",
-        "repo": "Luna-AI-Agent",
-        "private": true
+        "repo": "Luna-AI-Agent"
       }
     ],
     "mac": {
