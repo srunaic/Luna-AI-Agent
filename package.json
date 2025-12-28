@@ -3,6 +3,10 @@
   "displayName": "Luna AI Agent",
   "description": "Luna AI Agent - AI-powered code editor with advanced UX",
   "version": "0.1.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/srunaic/Luna-AI-Agent.git"
+  },
   "engines": {
     "vscode": "^1.74.0"
   },
@@ -44,6 +48,7 @@
     "electron-dev": "ELECTRON_IS_DEV=true npm run electron",
     "build-electron": "npm run compile && npm run build-webview && electron-builder",
     "build-electron-win": "npm run compile && npm run build-webview && electron-builder --win --publish never",
+    "release-win": "npm run compile && npm run build-webview && electron-builder --win --publish always",
     "build-electron-mac": "npm run compile && npm run build-webview && electron-builder --mac",
     "build-electron-linux": "npm run compile && npm run build-webview && electron-builder --linux",
     "package-electron": "echo \"Deprecated: Use npm run build-electron-win (electron-builder)\" && exit 1"
@@ -86,8 +91,7 @@
     },
     "publish": [
       {
-        "provider": "generic",
-        "url": "https://example.com/luna-updates/"
+        "provider": "github"
       }
     ],
     "mac": {
