@@ -152,9 +152,14 @@ function isOpenAIModel(model) {
 function checkOllamaOnce(timeoutMs = 700) {
   return new Promise((resolve) => {
     const cfg = (llmSettings?.ollama || defaultSettings().ollama);
+    // Windows에서 localhost가 IPv6(::1)로 먼저 해석되면 Ollama가 127.0.0.1만 리슨할 때 연결이 실패할 수 있어
+    // localhost는 IPv4로 강제합니다. (브라우저는 종종 fallback 하지만 Node는 실패할 수 있음)
+    const host = (cfg.host || 'localhost').trim();
+    const hostname = host.toLowerCase() === 'localhost' ? '127.0.0.1' : host;
     const req = http.request(
       {
-        hostname: cfg.host || 'localhost',
+        hostname,
+        family: hostname === '127.0.0.1' ? 4 : undefined,
         port: Number(cfg.port || 11434),
         path: '/api/version',
         method: 'GET'
@@ -247,11 +252,14 @@ function checkOpenAIOnce(timeoutMs = 1200) {
 async function checkLLMOnce() {
   if (activeModel === 'ollama') {
     const connected = await checkOllamaOnce();
+    const cfg = (llmSettings?.ollama || defaultSettings().ollama);
+    const host = (cfg.host || 'localhost').trim();
+    const port = Number(cfg.port || 11434);
     return {
       provider: 'ollama',
       connected,
       model: activeModel,
-      message: connected ? 'Ollama connected' : 'Ollama not reachable (localhost:11434)'
+      message: connected ? `Ollama connected (${host}:${port})` : `Ollama not reachable (${host}:${port})`
     };
   }
 
