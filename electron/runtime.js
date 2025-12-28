@@ -17,7 +17,7 @@ class AgentRuntime {
         try {
             // [FAST PATH] 만약 단순한 질문이거나 대화라면 복잡한 에이전트 추론 루프를 건너뛰고 즉시 스트리밍합니다.
             const isComplexTask = instruction.includes('파일') || instruction.includes('코드') || instruction.includes('터미널') || instruction.length > 100;
-            
+
             if (!isComplexTask) {
                 onResponse({ type: 'status', data: { state: 'thinking', message: '', isPartial: true, taskId: context.taskId } });
                 let fullText = "";
@@ -50,12 +50,12 @@ class AgentRuntime {
                 }
 
                 // Parse Thought/Tool/Answer
-                const toolMatch = responseText.match(/TOOL:\s*(\w+)\nINPUT:\s*([\s\S]+)/i);
+                const toolMatch = responseText.match(/TOOL:\s*(\w+)\s*\nINPUT:\s*([\s\S]+?)(?=\n(?:THOUGHT|TOOL|ANSWER):|$)/i);
                 const answerMatch = responseText.match(/ANSWER:\s*([\s\S]+)/i);
 
                 if (toolMatch) {
                     const toolName = toolMatch[1].trim();
-                    const toolInput = toolMatch[2].trim();
+                    const toolInput = toolMatch[2].trim().replace(/^```\w*\n?/, '').replace(/\n?```$/, '');
 
                     onResponse({
                         type: 'status',
@@ -72,20 +72,20 @@ class AgentRuntime {
 
                     onResponse({
                         type: 'action',
-                        data: { 
-                            tool: toolName, 
-                            input: toolInput, 
+                        data: {
+                            tool: toolName,
+                            input: toolInput,
                             result: toolResult,
-                            taskId: context.taskId 
+                            taskId: context.taskId
                         }
                     });
 
                     history.push({ role: 'assistant', content: responseText });
                     history.push({ role: 'system', content: `TOOL_RESULT: ${toolResult}` });
-                    
+
                     // Continue loop
                     continue;
-                } 
+                }
 
                 if (answerMatch || responseText) {
                     const finalAnswer = answerMatch ? answerMatch[1].trim() : responseText;
@@ -107,15 +107,34 @@ class AgentRuntime {
     }
 
     async executeTool(name, input, context) {
+        const fs = require('fs');
+        const path = require('path');
+        const root = context.projectRoot || process.cwd();
+
         switch (name) {
             case 'terminal_run':
                 const { execSync } = require('child_process');
-                return execSync(input, { encoding: 'utf8', cwd: context.projectRoot || process.cwd() });
+                return execSync(input, { encoding: 'utf8', cwd: root });
             case 'read_file':
-                const fs = require('fs');
-                return fs.readFileSync(input, 'utf8');
+                return fs.readFileSync(path.resolve(root, input), 'utf8');
+            case 'write_file':
+                // input format might be "path\ncontent" if the LLM is simplistic, 
+                // but we prefer "path" and use the remaining as content.
+                // For robustness, we check for a first line as path.
+                const firstNewLine = input.indexOf('\n');
+                if (firstNewLine === -1) throw new Error("write_file requires path followed by content on a new line.");
+                const filePath = input.substring(0, firstNewLine).trim();
+                const content = input.substring(firstNewLine + 1);
+                fs.writeFileSync(path.resolve(root, filePath), content, 'utf8');
+                return `Successfully wrote to ${filePath}`;
+            case 'list_dir':
+                const dirPath = path.resolve(root, input || '.');
+                const files = fs.readdirSync(dirPath);
+                return files.map(f => {
+                    const stats = fs.statSync(path.join(dirPath, f));
+                    return `[${stats.isDirectory() ? 'DIR' : 'FILE'}] ${f}`;
+                }).join('\n');
             case 'web_search':
-                // Placeholder for real web search
                 return `Search results for "${input}": [Luna is integrating real-time search...]`;
             default:
                 throw new Error(`Unknown tool: ${name}`);
@@ -124,7 +143,7 @@ class AgentRuntime {
 
     async callOllama(instruction, context, onResponse, directMode = false) {
         const prompt = directMode ? instruction : this.buildPrompt(instruction, context);
-        
+
         return new Promise((resolve, reject) => {
             const cfg = context?.llmSettings?.ollama || { host: 'localhost', port: 11434, protocol: 'http' };
             const rawHost = String(cfg.host || 'localhost').trim();
@@ -132,8 +151,8 @@ class AgentRuntime {
             const port = Number(cfg.port || 11434);
             const protocol = (cfg.protocol === 'https') ? 'https' : 'http';
             const modelName = String(cfg.model || 'llama3');
-            const numPredict = Number(cfg.numPredict || 256);
-            const temperature = Number(cfg.temperature ?? 0.2);
+            const numPredict = Number(cfg.numPredict || 1024); // Increased for reasoning
+            const temperature = Number(cfg.temperature ?? 0.1);
 
             const payload = {
                 model: modelName,
@@ -142,7 +161,7 @@ class AgentRuntime {
                 options: {
                     num_predict: numPredict,
                     temperature,
-                    num_ctx: 1024,
+                    num_ctx: 2048, // Slightly increased for protocol stability
                     top_k: 10,
                     top_p: 0.5,
                     repeat_penalty: 1.1
@@ -178,7 +197,6 @@ class AgentRuntime {
 
                 res.on('data', (chunk) => {
                     if (firstToken) {
-                        // 첫 토큰이 오면 즉시 thinking 상태를 업데이트하여 응답 시작을 알림
                         onResponse({
                             type: 'status',
                             data: { state: 'typing', message: '', isPartial: true, taskId: context.taskId }
@@ -187,12 +205,12 @@ class AgentRuntime {
                     }
 
                     buffer += chunk.toString();
-                    
+
                     let boundary = buffer.indexOf('}');
                     while (boundary !== -1) {
                         const jsonStr = buffer.substring(0, boundary + 1);
                         buffer = buffer.substring(boundary + 1);
-                        
+
                         try {
                             const json = JSON.parse(jsonStr);
                             if (json.response) {
@@ -208,7 +226,7 @@ class AgentRuntime {
                                 resolve(fullText);
                                 return;
                             }
-                        } catch (e) {}
+                        } catch (e) { }
                         boundary = buffer.indexOf('}');
                     }
                 });
@@ -231,36 +249,45 @@ class AgentRuntime {
         const selectionContext = context.selectedText ? `Selected Code:\n\`\`\`\n${context.selectedText}\n\`\`\`\n` : "";
         const projectContext = context.projectRoot ? `Project Root: ${context.projectRoot}\n` : "";
         const historyText = context.history?.length > 0 ? `Conversation History:\n${context.history.map(h => `${h.role}: ${h.content}`).join('\n')}\n` : "";
-        
-        return `You are Luna, an advanced AI Orchestrator. 
-Your goal is to solve the user's request by thinking step-by-step and using tools if necessary.
 
-Context:
+        return `You are Luna, a high-performance AI Agent and Orchestrator. 
+Your goal is to execute the user's request with precision and systemic thinking.
+
+[MASTER PROTOCOL]
+1. ANALYZE: Understand the core objective and constraints.
+2. PLAN: Mentally map out the steps needed (e.g., list files -> read content -> modify -> verify).
+3. ACT: Use one tool at a time. Do not assume outcomes.
+4. REVISE: If a tool fails or provides unexpected data, adjust your plan.
+
+[CONTEXT]
 ${projectContext}${fileContext}${selectionContext}
-
 ${historyText}
-User Instruction: ${instruction}
 
-[Available Tools]
-1. web_search(query): Search the web for latest info, documentation, or code samples.
-2. terminal_run(command): Run a PowerShell command.
-3. read_file(path): Read file content.
-4. write_file(path, content): Write or update a file.
+[USER REQUEST]
+${instruction}
 
-[Output Format]
-If you need a tool:
-THOUGHT: (Your reasoning)
+[AVAILABLE TOOLS]
+1. list_dir(path): Lists files in a directory. Use "." for project root.
+2. read_file(path): Reads text content from a file.
+3. write_file(path\\ncontent): Writes or overwrites a file. Format: relative_path, newline, then full content.
+4. terminal_run(command): Executes a PowerShell command.
+5. web_search(query): Searches for technical info.
+
+[RESPONSE FORMAT]
+To use a tool:
+THOUGHT: (Briefly explain your next step and reasoning)
 TOOL: tool_name
-INPUT: tool_input
+INPUT: tool_input (No code blocks unless it's part of the file content)
 
-If you have the final answer:
-THOUGHT: (Final reasoning)
-ANSWER: (Your final response to the user)
+To give the final answer:
+THOUGHT: (Summary of actions taken)
+ANSWER: (Final response to the user in their language)
 
-Rules:
-- Be extremely fast and concise.
-- Use tools only when you lack information or need to act.
-- For code, always provide a complete snippet.`;
+[RULES]
+- Stay in character as Luna.
+- Be concise but thorough.
+- ALWAYS use THOUGHT before any TOOL or ANSWER.
+- If you are writing code, ensure it is production-ready.`;
     }
 
     delay(ms) {
