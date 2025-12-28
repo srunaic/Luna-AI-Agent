@@ -268,11 +268,12 @@ async function checkLLMOnce() {
     const cfg = (llmSettings?.ollama || defaultSettings().ollama);
     const host = (cfg.host || 'localhost').trim();
     const port = Number(cfg.port || 11434);
+    const displayName = activeModel === 'luna-soul' ? 'Luna Soul' : activeModel;
     return {
-      provider: 'ollama',
+      provider: displayName,
       connected,
       model: activeModel,
-      message: connected ? `Luna LLM connected (${activeModel})` : `Luna LLM not reachable (localhost:${port})`
+      message: connected ? `${displayName} Connected` : `${displayName} Not Reachable (localhost:${port})`
     };
   }
 
@@ -437,10 +438,11 @@ function createChatWindow() {
 
   // If we already know the LLM status, push it into the new chat window immediately
   if (lastLLMConnected !== null) {
+    const displayName = activeModel === 'luna-soul' ? 'Luna Soul' : activeModel;
     sendLLMConnectionStatus({
-      provider: 'ollama',
+      provider: displayName,
       connected: lastLLMConnected,
-      message: lastLLMConnected ? 'Ollama connected' : 'Ollama not reachable (localhost:11434)'
+      message: lastLLMConnected ? `${displayName} Connected` : `${displayName} Not Reachable (localhost:11434)`
     });
   }
 }
@@ -449,13 +451,86 @@ ipcMain.on('popout-chat', () => {
   createChatWindow();
 });
 
-// Extensions Path
-const EXTENSIONS_PATH = path.join(app.getPath('userData'), 'extensions');
-if (!fs.existsSync(EXTENSIONS_PATH)) {
-  fs.mkdirSync(EXTENSIONS_PATH, { recursive: true });
+// --- 자율 학습 (Deep Learning) 엔진 ---
+let isDeepLearningActive = false;
+let deepLearningTimer = null;
+
+function broadcastDeepLearningStatus() {
+  const payload = { active: isDeepLearningActive };
+  if (mainWindow) mainWindow.webContents.send('deep_learning_status', payload);
+  for (const w of chatWindows) {
+    try { w.webContents.send('deep_learning_status', payload); } catch (_) { }
+  }
 }
 
-// ... existing code ...
+function broadcastAgentResponse(response) {
+  if (mainWindow) mainWindow.webContents.send('agent-response', response);
+  for (const w of chatWindows) {
+    try { w.webContents.send('agent-response', response); } catch (_) { }
+  }
+}
+
+function runDeepLearningPulse() {
+  if (!isDeepLearningActive) return;
+
+  console.log("🧠 [LUNA DEEP LEARNING] 자율 학습 펄스 시작...");
+
+  const topics = ["TypeScript의 고급 타입 시스템", "Electron 보안 베스트 프렉티스", "Rust 언어의 메모리 안전성", "AI 에이전트의 자율적 사고 모델", "현대적 CSS 애니메이션 기법"];
+  const randomTopic = topics[Math.floor(Math.random() * topics.length)];
+
+  const taskId = `dl_${Date.now()}`;
+  const instruction = `자율 학습 모드: "${randomTopic}"에 대해 웹 검색을 수행하고, 핵심 요약을 [KNOWLEDGE] 카테고리로 deep_learn 도구를 사용하여 학습하세요.`;
+
+  if (!llmSettings) loadSettings();
+
+  const request = {
+    type: 'edit_request', // 에디터 모드로 호출 (Plan 생성 유도)
+    instruction,
+    context: {
+      taskId,
+      llmSettings,
+      model: 'luna-soul',
+      projectRoot: globalEditorState.projectRoot
+    }
+  };
+
+  agentRuntime.processRequest(request, (response) => {
+    // 모든 창에 진행 상황 전송 (UI Visualize)
+    broadcastAgentResponse({
+      ...response,
+      data: { ...(response.data || {}), taskId }
+    });
+
+    if (response.type === 'action') {
+      console.log(`🧠 [DL ACTION] ${response.data?.tool}: ${response.data?.input}`);
+    }
+    if (response.type === 'done') {
+      console.log("🧠 [LUNA DEEP LEARNING] 학습 사이클 완료.");
+      if (isDeepLearningActive) {
+        deepLearningTimer = setTimeout(runDeepLearningPulse, 5 * 60 * 1000);
+      }
+    }
+  });
+}
+
+ipcMain.on('start_deep_learning', () => {
+  if (isDeepLearningActive) return;
+  isDeepLearningActive = true;
+  console.log("🚀 [LUNA] 자율 학습 모드 활성화!");
+  runDeepLearningPulse();
+  broadcastDeepLearningStatus();
+});
+
+ipcMain.on('stop_deep_learning', () => {
+  isDeepLearningActive = false;
+  if (deepLearningTimer) clearTimeout(deepLearningTimer);
+  console.log("🛑 [LUNA] 자율 학습 모드 중단.");
+  broadcastDeepLearningStatus();
+});
+
+ipcMain.on('get_deep_learning_status', () => {
+  broadcastDeepLearningStatus();
+});
 
 ipcMain.on('new-chat-window', () => {
   createChatWindow();
@@ -826,6 +901,16 @@ ipcMain.handle('execute-task', async (event, instruction, context) => {
   };
 
   agentRuntime.processRequest(request, (response) => {
+    // [DEBUG] 루나의 행동을 메인 콘솔에 대대적으로 출력
+    if (response.type === 'action') {
+      console.log("\n" + "=".repeat(50));
+      console.log("🔥🔥🔥 [LUNA ACTION] 도구 실행 감지");
+      console.log("🛠️  [TOOL]:", response.data?.tool);
+      console.log("📥  [INPUT]:", response.data?.input);
+      console.log("📤  [RESULT]:", response.data?.result?.substring(0, 500) + (response.data?.result?.length > 500 ? "..." : ""));
+      console.log("=".repeat(50) + "\n");
+    }
+
     // Ensure taskId is present on all responses for reliable correlation in UI
     const enriched = {
       ...response,

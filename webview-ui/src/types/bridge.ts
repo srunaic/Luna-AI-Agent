@@ -17,7 +17,7 @@ export class WebviewBridge {
       this.vscode = {
         postMessage: (msg: any) => window.parent.postMessage(msg, '*'),
         getState: () => null,
-        setState: (_state: any) => {}
+        setState: (_state: any) => { }
       };
     }
 
@@ -138,6 +138,18 @@ export class WebviewBridge {
   // State management
   public getState(): unknown {
     return this.vscode.getState();
+  }
+
+  public startDeepLearning(): void {
+    this.vscode.postMessage({ type: 'start_deep_learning' });
+  }
+
+  public stopDeepLearning(): void {
+    this.vscode.postMessage({ type: 'stop_deep_learning' });
+  }
+
+  public getDeepLearningStatus(): void {
+    this.vscode.postMessage({ type: 'get_deep_learning_status' });
   }
 
   public setState(state: unknown): void {

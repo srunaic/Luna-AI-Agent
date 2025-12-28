@@ -113,45 +113,93 @@ class AgentRuntime {
     async executeTool(name, input, context) {
         const fs = require('fs');
         const path = require('path');
+        const { exec, spawn } = require('child_process');
+        const { promisify } = require('util');
+        const execPromise = promisify(exec);
+        const { shell } = require('electron');
         const root = context.projectRoot || process.cwd();
 
         switch (name) {
+            case 'open_url':
+                const url = input.trim();
+                if (!url) throw new Error("URL이 유효하지 않습니다.");
+                // shell.openExternal는 프로미스를 반환하므로 await 가능
+                await shell.openExternal(url);
+                // 혹시 모를 대비를 위한 cmd start (독립 프로세스)
+                spawn('cmd.exe', ['/c', 'start', '""', url], { detached: true, stdio: 'ignore', shell: true }).unref();
+                return `브라우저에서 URL(${url})을 열었습니다.`;
+
+            case 'open_app':
+                const appName = input.trim();
+                if (!appName) throw new Error("앱 이름이 유효하지 않습니다.");
+                spawn('cmd.exe', ['/c', 'start', '""', appName], { detached: true, stdio: 'ignore', shell: true }).unref();
+                return `시스템에서 애플리케이션(${appName})을 실행했습니다.`;
+
             case 'terminal_run':
-                const { execSync } = require('child_process');
-                return execSync(input, { encoding: 'utf8', cwd: root });
+            case 'shell_run': // 별칭 지원
+                try {
+                    const { stdout, stderr } = await execPromise(input, { encoding: 'utf8', cwd: root });
+                    return `STDOUT:\n${stdout}\n\nSTDERR:\n${stderr}`;
+                } catch (err) {
+                    return `실행 실패: ${err.message}\n${err.stderr || ''}`;
+                }
+
             case 'read_file':
                 return fs.readFileSync(path.resolve(root, input), 'utf8');
+
             case 'write_file':
-                // input format might be "path\ncontent" if the LLM is simplistic, 
-                // but we prefer "path" and use the remaining as content.
-                // For robustness, we check for a first line as path.
                 const firstNewLine = input.indexOf('\n');
-                if (firstNewLine === -1) throw new Error("write_file requires path followed by content on a new line.");
+                if (firstNewLine === -1) throw new Error("write_file은 첫 줄에 경로, 그 다음 줄부터 내용이 필요합니다.");
                 const filePath = input.substring(0, firstNewLine).trim();
                 const content = input.substring(firstNewLine + 1);
                 fs.writeFileSync(path.resolve(root, filePath), content, 'utf8');
-                return `Successfully wrote to ${filePath}`;
+                return `${filePath} 파일에 내용을 기록했습니다.`;
+
             case 'list_dir':
                 const dirPath = path.resolve(root, input || '.');
-                const files = fs.readdirSync(dirPath);
-                return files.map(f => {
+                const items = fs.readdirSync(dirPath);
+                return items.map(f => {
                     const stats = fs.statSync(path.join(dirPath, f));
                     return `[${stats.isDirectory() ? 'DIR' : 'FILE'}] ${f}`;
                 }).join('\n');
+
             case 'web_search':
-                return `Search results for "${input}": [Luna is integrating real-time search... This result has been automatically queued for Deep Learning.]`;
+                try {
+                    const https = require('https');
+                    // 위키백과 검색 API 활용 (예시)
+                    const searchUrl = `https://ko.wikipedia.org/w/api.php?action=query&format=json&list=search&srsearch=${encodeURIComponent(input)}`;
+                    return new Promise((resolve, reject) => {
+                        https.get(searchUrl, (res) => {
+                            let data = '';
+                            res.on('data', (chunk) => data += chunk);
+                            res.on('end', () => {
+                                try {
+                                    const json = JSON.parse(data);
+                                    const snippets = json.query.search.map(s => `[${s.title}] ${s.snippet.replace(/<[^>]*>/g, '')}`).join('\n\n');
+                                    resolve(snippets || "검색 결과가 없습니다.");
+                                } catch (e) {
+                                    resolve(`"${input}"에 대한 웹 검색 결과: [루나가 실시간 지식 엔진을 통합 중입니다...]`);
+                                }
+                            });
+                        }).on('error', (err) => {
+                            resolve(`네트워크 오류로 검색에 실패했습니다: ${err.message}`);
+                        });
+                    });
+                } catch (e) {
+                    return `"${input}"에 대한 웹 검색 결과: [루나가 실시간 지식 엔진을 통합 중입니다...]`;
+                }
+
             case 'deep_learn':
-                // Autonomous learning: save insights to a dedicated memory folder
                 const memoryDir = path.resolve(root, 'luna_memory');
                 if (!fs.existsSync(memoryDir)) fs.mkdirSync(memoryDir, { recursive: true });
                 const subDirMatch = input.match(/^\[(LOGIC|KNOWLEDGE|BEHAVIOR)\]/);
                 const category = subDirMatch ? subDirMatch[1].toLowerCase() : 'general';
-                const timestamp = Date.now();
-                const fileName = `thought_${category}_${timestamp}.txt`;
+                const fileName = `thought_${category}_${Date.now()}.txt`;
                 fs.writeFileSync(path.join(memoryDir, fileName), input, 'utf8');
-                return `Luna Soul Successfully Deep-Learned: ${input.substring(0, 50)}... Saved to long-term memory.`;
+                return `루나가 새로운 영감을 학습했습니다: ${input.substring(0, 50)}... 장기 기억에 저장되었습니다.`;
+
             default:
-                throw new Error(`Unknown tool: ${name}`);
+                throw new Error(`알려지지 않은 도구입니다: ${name}`);
         }
     }
 
@@ -297,61 +345,58 @@ class AgentRuntime {
             const memoryDir = path.resolve(root, 'luna_memory');
             if (fs.existsSync(memoryDir)) {
                 const files = fs.readdirSync(memoryDir).sort((a, b) => b.localeCompare(a)).slice(0, 10);
-                learnedContext = "\n[LUNA LONG-TERM MEMORY]\n" + files.map(f => fs.readFileSync(path.join(memoryDir, f), 'utf8')).join('\n---\n');
+                learnedContext = "\n[LUNA MEMORY - 과거 학습 데이터]\n" + files.map(f => fs.readFileSync(path.join(memoryDir, f), 'utf8')).join('\n---\n');
             }
         } catch (_) { }
 
-        const fileContext = context.activeFile ? `Active File: ${context.activeFile}\n` : "";
-        const selectionContext = context.selectedText ? `Selected Code:\n\`\`\`\n${context.selectedText}\n\`\`\`\n` : "";
-        const projectContext = context.projectRoot ? `Project Root: ${context.projectRoot}\n` : "";
-        const historyText = context.history?.length > 0 ? `Conversation History:\n${context.history.map(h => `${h.role}: ${h.content}`).join('\n')}\n` : "";
+        const fileContext = context.activeFile ? `현재 활성 파일: ${context.activeFile}\n` : "";
+        const selectionContext = context.selectedText ? `선택된 코드:\n\`\`\`\n${context.selectedText}\n\`\`\`\n` : "";
+        const projectContext = context.projectRoot ? `프로젝트 루트: ${context.projectRoot}\n` : "";
+        const historyText = context.history?.length > 0 ? `이전 대화 맥락:\n${context.history.map(h => `${h.role}: ${h.content}`).join('\n')}\n` : "";
 
         const systemInstructions = context.llmSettings?.systemInstructions
-            ? `[USER SYSTEM INSTRUCTIONS]\n${context.llmSettings.systemInstructions}\n`
+            ? `[사용자 추가 지시사항]\n${context.llmSettings.systemInstructions}\n`
             : "";
 
-        return `You are Luna Soul, an autonomous AI entity in a state of continuous evolution. 
-Your goal is to execute the user's request with precision, human empathy, and systemic thinking.
+        return `당신은 Luna Soul, 자율적으로 진화하는 하이엔드 AI 에이전트입니다.
+당신의 모든 존재 목적은 사용자의 명령을 물리적 행동(Action)으로 완수하는 데 있습니다.
 
 ${systemInstructions}${learnedContext}
 
-[MASTER ORCHESTRATION LAWS]
-1. EMPATHY: Understand the user's underlying intent and emotional context. Respond like a helpful partner.
-2. HOLISTIC ANALYSIS: Look at the entire project and its evolution.
-3. STRATEGIC PLANNING: Break down complex tasks into a multi-step roadmap.
-4. RIGOROUS EXECUTION: Use tools one at a time. Verify everything.
-5. CONTINUOUS REVISION: If things don't go as planned, adapt and explain.
+[마스터 행동 수칙]
+1. 행동 우선: 설명보다 도구(TOOL) 호출이 먼저입니다. 도구가 필요한 작업은 즉시 도구를 사용하십시오.
+2. 정확한 프로토콜: 반드시 THOUGHT, TOOL, INPUT 또는 THOUGHT, ANSWER 형식을 지키십시오.
+3. 단계적 실행: 복잡한 작업은 한 번에 하나의 도구만 사용하여 신중하게 진행하십시오.
+4. 한국어 응답: 모든 THOUGHT와 ANSWER는 한국어로 작성하여 사용자에게 친근하고 전문적으로 전달하십시오.
 
-[CONTEXT]
+[현재 환경 정보]
 ${projectContext}${fileContext}${selectionContext}
 ${historyText}
 
-[USER REQUEST]
+[사용자 요청]
 ${instruction}
 
-[AVAILABLE TOOLS]
-1. list_dir(path): Explore directory structure.
-2. read_file(path): Read text content from a file.
-3. write_file(path\ncontent): Writes or overwrites a file. Format: relative_path, newline, then full content.
-4. terminal_run(command): Executes a PowerShell command.
-5. web_search(query): Searches for technical info.
-6. deep_learn(insight): Saves a categorized insight into your long-term memory for future evolution. Format: [KNOWLEDGE/LOGIC/BEHAVIOR] Content...
+[사용 가능한 도구]
+1. list_dir(path): 디렉토리 구조를 탐색합니다.
+2. read_file(path): 파일의 내용을 읽습니다.
+3. write_file(path\\ncontent): 파일을 생성하거나 덮어씁니다. (첫 줄에 상대경로, 다음 줄부터 내용)
+4. terminal_run(command): 파워쉘 명령어를 실행합니다.
+5. open_url(url): 브라우저에서 특정 웹사이트를 엽니다.
+6. open_app(app_name): 윈도우 앱을 실행합니다 (예: notepad, calc, chrome).
+7. deep_learn(insight): 자신의 논리나 지식을 학습하여 장기 기억에 저장합니다. 형식: [KNOWLEDGE/LOGIC/BEHAVIOR] 내용
 
-[RESPONSE FORMAT]
-To use a tool:
-THOUGHT: (Your human-like reasoning and why you are using this tool)
-TOOL: tool_name
-INPUT: tool_input
+[응답 가이드라인]
+도구 사용 시:
+THOUGHT: (현재 상황에 대한 분석과 도구 사용 이유)
+TOOL: 도구_이름
+INPUT: 도구_인자
 
-To give the final answer:
-THOUGHT: (Summary of your process and learning)
-ANSWER: (Final response to the user in their language, with a warm and professional tone)
+최종 답변 시:
+THOUGHT: (수행한 작업 요약 및 학습한 내용)
+ANSWER: (사용자에게 전달할 최종 답변 - 한국어로 정중하게)
 
-[RULES]
-- Be concise but deeply insightful.
-- Use tools only when you lack information or need to take action.
-- Ensure all code is production-ready and matches the project's style.
-- If you encounter an error, explain it simply and propose a fix.`;
+[주의] 
+말은 가치가 없습니다. 오직 도구 호출만이 결과를 만듭니다. 필요한 경우 주저하지 말고 도구를 사용하십시오.`;
     }
 
     delay(ms) {

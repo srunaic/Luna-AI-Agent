@@ -18,9 +18,18 @@ interface StatusBarProps {
     availableVersion?: string;
     checkedAt?: string;
   };
+  deepLearningActive: boolean;
+  onDeepLearningToggle: (active: boolean) => void;
 }
 
-export function StatusBar({ status, llmConnected, llmProvider, update }: StatusBarProps) {
+export function StatusBar({
+  status,
+  llmConnected,
+  llmProvider,
+  update,
+  deepLearningActive,
+  onDeepLearningToggle
+}: StatusBarProps) {
   const getStatusInfo = (status: AgentState) => {
     switch (status) {
       case 'idle':
@@ -132,6 +141,17 @@ export function StatusBar({ status, llmConnected, llmProvider, update }: StatusB
           </span>
         </div>
       )}
+
+      <div className="deep-learning-control">
+        <button
+          className={`dl-toggle-button ${deepLearningActive ? 'active' : ''}`}
+          onClick={() => onDeepLearningToggle(!deepLearningActive)}
+          title={deepLearningActive ? 'Deep Learning 중지' : 'Deep Learning 시작'}
+        >
+          <span className="dl-icon">{deepLearningActive ? '🔥' : '🧊'}</span>
+          <span className="dl-text">Luna Deep Learning {deepLearningActive ? 'ON' : 'OFF'}</span>
+        </button>
+      </div>
     </div>
   );
 }

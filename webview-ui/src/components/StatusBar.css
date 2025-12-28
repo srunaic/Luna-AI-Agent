@@ -1,8 +1,46 @@
-.status-bar {
+.deep-learning-control {
+  margin-left: auto;
+}
+
+.dl-toggle-button {
+  background: #252526;
+  border: 1px solid #3c3c3c;
+  color: #cccccc;
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 11px;
+  cursor: pointer;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 6px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.dl-toggle-button:hover {
+  border-color: #007acc;
+  background: #2a2d2e;
+}
+
+.dl-toggle-button.active {
+  background: rgba(0, 122, 204, 0.1);
+  border-color: #007acc;
+  color: #ffffff;
+  box-shadow: 0 0 10px rgba(0, 122, 204, 0.3);
+}
+
+.dl-icon {
+  font-size: 14px;
+  transition: transform 0.5s ease;
+}
+
+.dl-toggle-button.active .dl-icon {
+  transform: rotate(360deg) scale(1.2);
+}
+
+.dl-text {
+  font-weight: 500;
+  letter-spacing: 0.2px;
 }
 
 .status-indicator {

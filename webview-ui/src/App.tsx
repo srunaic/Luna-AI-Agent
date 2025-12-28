@@ -17,6 +17,7 @@ interface AgentStore {
   editorContext: EditorContext | null;
   llmConnected: boolean;
   llmProvider: string | null;
+  deepLearningActive: boolean;
   update: {
     state: 'idle' | 'checking' | 'available' | 'none' | 'downloading' | 'downloaded' | 'error';
     progress?: {
@@ -62,6 +63,7 @@ function App() {
     editorContext: null,
     llmConnected: false,
     llmProvider: null,
+    deepLearningActive: false,
     update: { state: 'idle' }
   });
 
@@ -77,7 +79,7 @@ function App() {
           setStore((prev: AgentStore) => ({ ...prev, chatHistory: parsed }));
         }
       }
-    } catch (_) {}
+    } catch (_) { }
 
     // Load initial editor context
     bridge.getEditorContext().then((context: EditorContext | null) => {
@@ -199,6 +201,13 @@ function App() {
             }
           }));
           break;
+
+        case 'deep_learning_status':
+          setStore((prev: AgentStore) => ({
+            ...prev,
+            deepLearningActive: !!message.data?.active
+          }));
+          break;
       }
     });
 
@@ -209,7 +218,7 @@ function App() {
     // Persist chat history
     try {
       localStorage.setItem(chatStorageKey, JSON.stringify(store.chatHistory));
-    } catch (_) {}
+    } catch (_) { }
   }, [store.chatHistory]);
 
   const handleModelChange = (model: string) => {
@@ -254,6 +263,14 @@ function App() {
     }
   };
 
+  const handleDeepLearningToggle = (active: boolean) => {
+    if (active) {
+      bridge.startDeepLearning();
+    } else {
+      bridge.stopDeepLearning();
+    }
+  };
+
   return (
     <div className="app">
       <div className="app-content">
@@ -269,6 +286,8 @@ function App() {
             llmConnected={store.llmConnected}
             llmProvider={store.llmProvider}
             update={store.update}
+            deepLearningActive={store.deepLearningActive}
+            onDeepLearningToggle={handleDeepLearningToggle}
           />
           <ChatInput
             onExecute={handleExecuteTask}
