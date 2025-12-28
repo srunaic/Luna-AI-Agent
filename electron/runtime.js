@@ -90,7 +90,7 @@ class AgentRuntime {
             const numPredict = Number(cfg.numPredict || 256);
             const temperature = Number(cfg.temperature ?? 0.2);
 
-            const data = JSON.stringify({
+            const payload = {
                 model: modelName,
                 prompt: prompt,
                 stream: false,
@@ -98,7 +98,9 @@ class AgentRuntime {
                     num_predict: numPredict,
                     temperature
                 }
-            });
+            };
+            const data = JSON.stringify(payload);
+            const dataBytes = Buffer.byteLength(data, 'utf8');
 
             const options = {
                 hostname: host,
@@ -107,7 +109,7 @@ class AgentRuntime {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Content-Length': data.length
+                    'Content-Length': dataBytes
                 }
             };
 
@@ -118,7 +120,21 @@ class AgentRuntime {
                 res.on('end', () => {
                     try {
                         const parsed = JSON.parse(body);
-                        resolve(parsed.response || "No response from Ollama.");
+                        // Ollama returns { response, done, ... } OR { error: "..." }
+                        if (parsed?.error) {
+                            reject(new Error(`Ollama error: ${parsed.error}`));
+                            return;
+                        }
+                        if (res.statusCode < 200 || res.statusCode >= 300) {
+                            reject(new Error(`Ollama HTTP ${res.statusCode}: ${body || 'Unknown error'}`));
+                            return;
+                        }
+                        const text = typeof parsed?.response === 'string' ? parsed.response : '';
+                        if (text.trim().length === 0) {
+                            reject(new Error(`Ollama returned empty response (model: ${modelName}). Try a different model in Settings.`));
+                            return;
+                        }
+                        resolve(text);
                     } catch (e) {
                         reject(new Error(`Ollama parse error: ${e.message}. Is Ollama running on ${host}:${port}?`));
                     }
