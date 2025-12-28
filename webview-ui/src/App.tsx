@@ -114,27 +114,58 @@ function App() {
           break;
 
         case 'status_update':
-          setStore(prev => ({
-            ...prev,
-            status: message.data.state
-          }));
+          if (message.data.isPartial) {
+            setStore(prev => {
+              const last = prev.chatHistory[prev.chatHistory.length - 1];
+              // If the last message is a stream for this task, update it
+              if (last && last.role === 'assistant' && last.id === `stream_${message.data.taskId}`) {
+                const newHistory = [...prev.chatHistory];
+                newHistory[newHistory.length - 1] = { ...last, content: message.data.message };
+                return { ...prev, status: message.data.state, chatHistory: newHistory };
+              } else {
+                // New streaming message
+                return {
+                  ...prev,
+                  status: message.data.state,
+                  chatHistory: [
+                    ...prev.chatHistory,
+                    {
+                      id: `stream_${message.data.taskId}`,
+                      role: 'assistant',
+                      content: message.data.message,
+                      ts: Date.now()
+                    }
+                  ]
+                };
+              }
+            });
+          } else {
+            setStore(prev => ({
+              ...prev,
+              status: message.data.state
+            }));
+          }
           break;
 
         case 'task_complete':
-          setStore(prev => ({
-            ...prev,
-            currentTaskId: null,
-            status: 'idle',
-            chatHistory: [
-              ...prev.chatHistory,
-              {
-                id: `assistant_${Date.now()}`,
-                role: 'assistant',
-                content: String(message.data?.message || ''),
-                ts: Date.now()
-              }
-            ]
-          }));
+          setStore(prev => {
+            // Remove the temporary stream message and add the final one
+            const filtered = prev.chatHistory.filter(m => m.id !== `stream_${message.data.taskId}`);
+            return {
+              ...prev,
+              currentTaskId: null,
+              status: 'idle',
+              chatHistory: [
+                ...filtered,
+                {
+                  id: `assistant_${Date.now()}`,
+                  role: 'assistant',
+                  content: String(message.data?.message || ''),
+                  ts: Date.now()
+                }
+              ]
+            };
+          });
           break;
 
         case 'llm_connection':

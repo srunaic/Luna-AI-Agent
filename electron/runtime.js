@@ -93,7 +93,7 @@ class AgentRuntime {
             const payload = {
                 model: modelName,
                 prompt: prompt,
-                stream: false,
+                stream: true,
                 options: {
                     num_predict: numPredict,
                     temperature
@@ -115,28 +115,52 @@ class AgentRuntime {
 
             const client = protocol === 'https' ? https : http;
             const req = client.request(options, (res) => {
-                let body = '';
-                res.on('data', (chunk) => body += chunk);
+                let fullText = "";
+                
+                if (res.statusCode < 200 || res.statusCode >= 300) {
+                    let body = '';
+                    res.on('data', (chunk) => body += chunk);
+                    res.on('end', () => {
+                        reject(new Error(`Ollama HTTP ${res.statusCode}: ${body || 'Unknown error'}`));
+                    });
+                    return;
+                }
+
+                res.on('data', (chunk) => {
+                    const lines = chunk.toString().split('\n');
+                    for (const line of lines) {
+                        if (!line.trim()) continue;
+                        try {
+                            const parsed = JSON.parse(line);
+                            if (parsed.error) {
+                                reject(new Error(`Ollama error: ${parsed.error}`));
+                                return;
+                            }
+                            if (parsed.response) {
+                                fullText += parsed.response;
+                                // Forward partial text to UI
+                                onResponse({
+                                    type: 'status',
+                                    data: { 
+                                        state: 'thinking', 
+                                        message: fullText,
+                                        isPartial: true
+                                    }
+                                });
+                            }
+                            if (parsed.done) {
+                                resolve(fullText);
+                            }
+                        } catch (e) {
+                            // Partials might be invalid JSON, skip
+                        }
+                    }
+                });
+
                 res.on('end', () => {
-                    try {
-                        const parsed = JSON.parse(body);
-                        // Ollama returns { response, done, ... } OR { error: "..." }
-                        if (parsed?.error) {
-                            reject(new Error(`Ollama error: ${parsed.error}`));
-                            return;
-                        }
-                        if (res.statusCode < 200 || res.statusCode >= 300) {
-                            reject(new Error(`Ollama HTTP ${res.statusCode}: ${body || 'Unknown error'}`));
-                            return;
-                        }
-                        const text = typeof parsed?.response === 'string' ? parsed.response : '';
-                        if (text.trim().length === 0) {
-                            reject(new Error(`Ollama returned empty response (model: ${modelName}). Try a different model in Settings.`));
-                            return;
-                        }
-                        resolve(text);
-                    } catch (e) {
-                        reject(new Error(`Ollama parse error: ${e.message}. Is Ollama running on ${host}:${port}?`));
+                    // done should have been handled by parsed.done
+                    if (fullText.trim().length === 0) {
+                        reject(new Error(`Ollama returned empty response (model: ${modelName}). Try a different model in Settings.`));
                     }
                 });
             });
