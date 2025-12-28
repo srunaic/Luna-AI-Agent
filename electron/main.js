@@ -186,6 +186,16 @@ function setupAutoUpdater() {
 
     autoUpdater.on('update-downloaded', async (info) => {
       sendUpdateStatus({ state: 'downloaded', info });
+
+      // Unattended mode: auto-restart + install when download completes
+      const unattended = String(process.env.LUNA_AUTO_INSTALL_UPDATE || '').toLowerCase() === 'true';
+      if (unattended) {
+        sendUpdateStatus({ state: 'installing', info });
+        // quitAndInstall(isSilent, isForceRunAfter)
+        autoUpdater.quitAndInstall(true, true);
+        return;
+      }
+
       const result = await dialog.showMessageBox(mainWindow, {
         type: 'info',
         buttons: ['Restart now', 'Later'],
