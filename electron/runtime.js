@@ -14,17 +14,27 @@ class AgentRuntime {
         const { instruction, context } = request;
         const model = context.model || 'ollama';
 
-        let turn = 0;
-        let maxTurns = 5;
-        let history = [];
-
         try {
-            while (turn < maxTurns) {
-                turn++;
-                onResponse({
-                    type: 'status',
-                    data: { state: 'thinking', message: `Orchestrating (Turn ${turn})...`, taskId: context.taskId }
-                });
+            // [FAST PATH] 만약 단순한 질문이거나 대화라면 복잡한 에이전트 추론 루프를 건너뛰고 즉시 스트리밍합니다.
+            const isComplexTask = instruction.includes('파일') || instruction.includes('코드') || instruction.includes('터미널') || instruction.length > 100;
+            
+            if (!isComplexTask) {
+                onResponse({ type: 'status', data: { state: 'thinking', message: '', isPartial: true, taskId: context.taskId } });
+                let fullText = "";
+                if (model === 'ollama') {
+                    fullText = await this.callOllama(instruction, context, onResponse, true); // directMode: true
+                } else {
+                    fullText = await this.callOpenAI(instruction, context, onResponse);
+                }
+                onResponse({ type: 'done', data: { success: true, message: fullText, taskId: context.taskId } });
+                return;
+            }
+
+            // [AGENT PATH] 복잡한 작업인 경우에만 도구 사용 루프를 실행합니다.
+            let turn = 0;
+            let maxTurns = 5;
+            let history = [];
+            // ... (기존 루프 유지)
 
                 let responseText = "";
                 if (model === 'ollama') {
@@ -106,8 +116,8 @@ class AgentRuntime {
         }
     }
 
-    async callOllama(instruction, context, onResponse) {
-        const prompt = this.buildPrompt(instruction, context);
+    async callOllama(instruction, context, onResponse, directMode = false) {
+        const prompt = directMode ? instruction : this.buildPrompt(instruction, context);
         
         return new Promise((resolve, reject) => {
             const cfg = context?.llmSettings?.ollama || { host: 'localhost', port: 11434, protocol: 'http' };
@@ -127,7 +137,7 @@ class AgentRuntime {
                 options: {
                     num_predict: numPredict,
                     temperature,
-                    num_ctx: 2048, // Reduce context window for much faster TTFT
+                    num_ctx: directMode ? 4096 : 2048, // Reduce context window for much faster TTFT
                     top_k: 20,     // Speed up sampling
                     top_p: 0.9     // Speed up sampling
                 }
@@ -150,7 +160,45 @@ class AgentRuntime {
             const req = client.request(options, (res) => {
                 let fullText = "";
                 let buffer = ""; // Robust buffer for stream chunks
-                
+
+                res.on('data', (chunk) => {
+                    buffer += chunk.toString();
+                    
+                    let boundary = buffer.indexOf('}');
+                    while (boundary !== -1) {
+                        const jsonStr = buffer.substring(0, boundary + 1);
+                        buffer = buffer.substring(boundary + 1);
+                        
+                        try {
+                            const json = JSON.parse(jsonStr);
+                            if (json.response) {
+                                fullText += json.response;
+                                if (onResponse) {
+                                    onResponse({
+                                        type: 'status',
+                                        data: { state: 'thinking', message: fullText, isPartial: true, taskId: context.taskId }
+                                    });
+                                }
+                            }
+                            if (json.done) {
+                                resolve(fullText);
+                                return;
+                            }
+                        } catch (e) {
+                            // ignore partials
+                        }
+                        boundary = buffer.indexOf('}');
+                    }
+                });
+
+                res.on('end', () => resolve(fullText));
+            });
+
+            req.on('error', reject);
+            req.write(data);
+            req.end();
+        });
+    }                
                 if (res.statusCode < 200 || res.statusCode >= 300) {
                     let body = '';
                     res.on('data', (chunk) => body += chunk);
