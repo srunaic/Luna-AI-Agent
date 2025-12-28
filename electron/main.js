@@ -465,6 +465,31 @@ ipcMain.handle('set-settings', async (_event, next) => {
   return llmSettings;
 });
 
+// Windows Firewall: allow Ollama port (11434) through firewall
+ipcMain.handle('firewall-allow-ollama', async () => {
+  try {
+    if (process.platform !== 'win32') {
+      return { success: false, message: 'Firewall helper is only supported on Windows.' };
+    }
+
+    // Requires admin; app already enforces admin on startup, but keep safe.
+    // Add inbound + outbound allow rules for TCP 11434.
+    const inName = 'Luna - Allow Ollama 11434 (TCP In)';
+    const outName = 'Luna - Allow Ollama 11434 (TCP Out)';
+
+    try {
+      execSync(`netsh advfirewall firewall add rule name="${inName}" dir=in action=allow protocol=TCP localport=11434`, { stdio: 'ignore' });
+    } catch (_) {}
+    try {
+      execSync(`netsh advfirewall firewall add rule name="${outName}" dir=out action=allow protocol=TCP localport=11434`, { stdio: 'ignore' });
+    } catch (_) {}
+
+    return { success: true, message: 'Added Windows Firewall allow rules for TCP port 11434.' };
+  } catch (e) {
+    return { success: false, message: `Failed to add firewall rules: ${e?.message || String(e)}` };
+  }
+});
+
 function setupMenu() {
   const template = [
     {

@@ -422,6 +422,8 @@ async function openSettingsModal() {
     const portEl = document.getElementById('ollama-port');
     const baseUrlEl = document.getElementById('openai-baseUrl');
     const apiKeyEl = document.getElementById('openai-apiKey');
+    const firewallBtn = document.getElementById('ollama-firewall-allow');
+    const statusEl = document.getElementById('settings-status');
     const btnSave = document.getElementById('settings-save');
     const btnCancel = document.getElementById('settings-cancel');
     const btnCloseX = document.getElementById('settings-close-x');
@@ -434,12 +436,14 @@ async function openSettingsModal() {
     if (portEl) portEl.value = String(settings?.ollama?.port ?? 11434);
     if (baseUrlEl) baseUrlEl.value = settings?.openai?.baseUrl ?? 'https://api.openai.com';
     if (apiKeyEl) apiKeyEl.value = settings?.openai?.apiKey ?? '';
+    if (statusEl) statusEl.textContent = '';
 
     const onCancel = () => close();
     const onCloseX = () => close();
     const onOverlayClick = (e) => { if (e.target === overlay) close(); };
 
     const onSave = async () => {
+        if (statusEl) statusEl.textContent = 'Saving...';
         const next = {
             ollama: {
                 host: (hostEl?.value || 'localhost').trim(),
@@ -451,13 +455,23 @@ async function openSettingsModal() {
             }
         };
         await window.electronAPI.setSettings(next);
+        if (statusEl) statusEl.textContent = 'Saved.';
         close();
+    };
+
+    const onAllowFirewall = async () => {
+        if (!window.electronAPI?.allowOllamaFirewall) return;
+        if (statusEl) statusEl.textContent = 'Adding firewall rule...';
+        const res = await window.electronAPI.allowOllamaFirewall();
+        if (statusEl) statusEl.textContent = res?.success ? 'Firewall rule added.' : (res?.message || 'Failed to add firewall rule.');
+        // Re-check connection by re-saving current settings (no-op) to trigger check, or just close/open indicator will update via monitor.
     };
 
     // (Re)bind handlers safely
     if (btnCancel) btnCancel.onclick = onCancel;
     if (btnCloseX) btnCloseX.onclick = onCloseX;
     if (btnSave) btnSave.onclick = onSave;
+    if (firewallBtn) firewallBtn.onclick = onAllowFirewall;
     overlay.onclick = onOverlayClick;
 
     // ESC closes

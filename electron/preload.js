@@ -69,5 +69,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Settings (LLM endpoints)
   getSettings: () => ipcRenderer.invoke('get-settings'),
-  setSettings: (settings) => ipcRenderer.invoke('set-settings', settings)
+  setSettings: (settings) => ipcRenderer.invoke('set-settings', settings),
+
+  // Windows Firewall helpers
+  allowOllamaFirewall: () => ipcRenderer.invoke('firewall-allow-ollama')
 });

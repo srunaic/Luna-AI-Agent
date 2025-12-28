@@ -482,6 +482,11 @@
                     <label for="ollama-port">Port</label>
                     <input id="ollama-port" placeholder="11434" />
                 </div>
+                <div class="field-row">
+                    <label></label>
+                    <button id="ollama-firewall-allow" class="btn" style="justify-self:start;">Allow in Windows Firewall</button>
+                    <div class="field-hint">연결이 막힐 때(보안/방화벽) 11434 포트를 허용 규칙으로 추가합니다.</div>
+                </div>
 
                 <div style="font-size:12px; font-weight:600; color:#fff; margin-top:8px;">OpenAI (GPT)</div>
                 <div class="field-row">
@@ -496,6 +501,7 @@
                 </div>
             </div>
             <div class="modal-footer">
+                <span id="settings-status" style="margin-right:auto; font-size:11px; color:#9a9a9a;"></span>
                 <button id="settings-cancel" class="btn">Cancel</button>
                 <button id="settings-save" class="btn primary">Save</button>
             </div>
