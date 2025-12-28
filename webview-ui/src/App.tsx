@@ -24,6 +24,9 @@ interface AgentStore {
       total?: number;
     };
     message?: string;
+    currentVersion?: string;
+    availableVersion?: string;
+    checkedAt?: string;
   };
 }
 
@@ -114,7 +117,10 @@ function App() {
             update: {
               state: message.data?.state || 'idle',
               progress: message.data?.progress,
-              message: message.data?.message
+              message: message.data?.message,
+              currentVersion: message.data?.currentVersion,
+              availableVersion: message.data?.availableVersion,
+              checkedAt: message.data?.checkedAt
             }
           }));
           break;

@@ -72,5 +72,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setSettings: (settings) => ipcRenderer.invoke('set-settings', settings),
 
   // Windows Firewall helpers
-  allowOllamaFirewall: () => ipcRenderer.invoke('firewall-allow-ollama')
+  allowOllamaFirewall: () => ipcRenderer.invoke('firewall-allow-ollama'),
+
+  // App / Update info
+  getAppInfo: () => ipcRenderer.invoke('get-app-info'),
+  checkUpdatesNow: () => ipcRenderer.invoke('check-updates-now')
 });

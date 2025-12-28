@@ -14,6 +14,9 @@ interface StatusBarProps {
       total?: number;
     };
     message?: string;
+    currentVersion?: string;
+    availableVersion?: string;
+    checkedAt?: string;
   };
 }
 
@@ -82,7 +85,11 @@ export function StatusBar({ status, llmConnected, llmProvider, update }: StatusB
       case 'checking':
         return { text: 'Checking updates…', color: '#007acc' as const, animate: true };
       case 'available':
-        return { text: 'Update available…', color: '#d29922' as const, animate: true };
+        return {
+          text: update.availableVersion ? `Update available: v${update.availableVersion}` : 'Update available…',
+          color: '#d29922' as const,
+          animate: true
+        };
       case 'downloading': {
         const pct = typeof update.progress?.percent === 'number' ? Math.round(update.progress.percent) : null;
         return { text: pct !== null ? `Downloading… ${pct}%` : 'Downloading…', color: '#007acc' as const, animate: true };
@@ -92,6 +99,11 @@ export function StatusBar({ status, llmConnected, llmProvider, update }: StatusB
       case 'error':
         return { text: update.message ? `Update error: ${update.message}` : 'Update error', color: '#d13438' as const, animate: false };
       case 'none':
+        return {
+          text: update.currentVersion ? `Up to date (v${update.currentVersion})` : 'Up to date',
+          color: '#6c6c6c' as const,
+          animate: false
+        };
       case 'idle':
       default:
         return null;

@@ -27,6 +27,8 @@ let llmHealthInterval = null;
 let lastLLMConnected = null;
 let activeModel = 'ollama';
 let updateCheckInterval = null;
+let lastUpdateState = { state: 'idle' };
+let lastUpdateCheckedAt = null;
 let settingsPath = null;
 let llmSettings = null;
 let globalEditorState = {
@@ -293,8 +295,14 @@ function stopLLMHealthMonitor() {
 }
 
 function sendUpdateStatus(payload) {
-  if (mainWindow) mainWindow.webContents.send('update-status', payload);
-  if (chatWindow) chatWindow.webContents.send('update-status', payload);
+  const enriched = {
+    ...payload,
+    currentVersion: app.getVersion(),
+    checkedAt: lastUpdateCheckedAt
+  };
+  lastUpdateState = enriched;
+  if (mainWindow) mainWindow.webContents.send('update-status', enriched);
+  if (chatWindow) chatWindow.webContents.send('update-status', enriched);
 }
 
 function setupAutoUpdater() {
@@ -322,8 +330,11 @@ function setupAutoUpdater() {
     autoUpdater.autoDownload = true;
     autoUpdater.autoInstallOnAppQuit = true;
 
-    autoUpdater.on('checking-for-update', () => sendUpdateStatus({ state: 'checking' }));
-    autoUpdater.on('update-available', (info) => sendUpdateStatus({ state: 'available', info }));
+    autoUpdater.on('checking-for-update', () => {
+      lastUpdateCheckedAt = new Date().toISOString();
+      sendUpdateStatus({ state: 'checking' });
+    });
+    autoUpdater.on('update-available', (info) => sendUpdateStatus({ state: 'available', info, availableVersion: info?.version }));
     autoUpdater.on('update-not-available', (info) => sendUpdateStatus({ state: 'none', info }));
     autoUpdater.on('download-progress', (progress) => sendUpdateStatus({ state: 'downloading', progress }));
     autoUpdater.on('error', (err) => sendUpdateStatus({ state: 'error', message: err?.message || String(err) }));
@@ -487,6 +498,30 @@ ipcMain.handle('firewall-allow-ollama', async () => {
     return { success: true, message: 'Added Windows Firewall allow rules for TCP port 11434.' };
   } catch (e) {
     return { success: false, message: `Failed to add firewall rules: ${e?.message || String(e)}` };
+  }
+});
+
+ipcMain.handle('get-app-info', async () => {
+  return {
+    version: app.getVersion(),
+    isPackaged: app.isPackaged,
+    lastUpdate: lastUpdateState,
+    lastUpdateCheckedAt
+  };
+});
+
+ipcMain.handle('check-updates-now', async () => {
+  try {
+    if (!app.isPackaged) {
+      return { success: false, message: 'Auto-update is disabled (dev/unpacked build).' };
+    }
+    lastUpdateCheckedAt = new Date().toISOString();
+    sendUpdateStatus({ state: 'checking' });
+    await autoUpdater.checkForUpdatesAndNotify();
+    return { success: true, message: 'Update check triggered.' };
+  } catch (e) {
+    sendUpdateStatus({ state: 'error', message: e?.message || String(e) });
+    return { success: false, message: e?.message || String(e) };
   }
 });
 
