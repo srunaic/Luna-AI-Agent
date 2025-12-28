@@ -49,6 +49,7 @@
     "build-electron": "npm run compile && npm run build-webview && electron-builder",
     "build-electron-win": "npm run compile && npm run build-webview && electron-builder --win --publish never",
     "release-win": "npm run compile && npm run build-webview && electron-builder --win --publish always",
+    "release-win-auto": "node -e \"const fs=require('fs'); const p=JSON.parse(fs.readFileSync('package.json')); const d=new Date(); const ts=String(d.getFullYear()).slice(2)+('0'+(d.getMonth()+1)).slice(-2)+('0'+d.getDate()).slice(-2)+('0'+d.getHours()).slice(-2)+('0'+d.getMinutes()).slice(-2); p.version=p.version.split('-')[0]+'-v'+ts; fs.writeFileSync('package.json', JSON.stringify(p, null, 2))\" && npm run release-win",
     "build-electron-mac": "npm run compile && npm run build-webview && electron-builder --mac",
     "build-electron-linux": "npm run compile && npm run build-webview && electron-builder --linux",
     "package-electron": "echo \"Deprecated: Use npm run build-electron-win (electron-builder)\" && exit 1"

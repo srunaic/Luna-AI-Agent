@@ -89,6 +89,9 @@ function App() {
     // Default model auto-connect on startup
     bridge.setModel('ollama');
 
+    // Load initial Deep Learning status
+    bridge.getDeepLearningStatus();
+
     // Listen for messages from extension
     const cleanup = bridge.onMessage((message: ExtensionToWebviewMessage) => {
       switch (message.type) {

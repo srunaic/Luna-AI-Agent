@@ -578,6 +578,12 @@ function setupIPCListeners() {
         } else if (message.type === 'set_model') {
             const model = message.data?.model;
             if (model) window.electronAPI.send('set-model', { model });
+        } else if (message.type === 'start_deep_learning') {
+            window.electronAPI.send('start_deep_learning');
+        } else if (message.type === 'stop_deep_learning') {
+            window.electronAPI.send('stop_deep_learning');
+        } else if (message.type === 'get_deep_learning_status') {
+            window.electronAPI.send('get_deep_learning_status');
         }
     });
 
@@ -681,6 +687,17 @@ function setupIPCListeners() {
                 statusEl.textContent = `Update status: ${payload?.state || 'idle'}${extra}${checkedAt}${msg}`;
             }
         } catch (_) { }
+    });
+
+    // 자율 학습 상태 수신 및 웹뷰 전달
+    window.electronAPI.on('deep_learning_status', (event, payload) => {
+        const iframe = document.getElementById('ai-panel-iframe');
+        if (iframe && iframe.contentWindow) {
+            iframe.contentWindow.postMessage({
+                type: 'deep_learning_status',
+                data: payload
+            }, '*');
+        }
     });
 }
 

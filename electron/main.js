@@ -353,6 +353,8 @@ function setupAutoUpdater() {
 
     autoUpdater.autoDownload = true;
     autoUpdater.autoInstallOnAppQuit = true;
+    autoUpdater.allowDowngrade = true; // 동일 버전이나 하위 버전으로의 "업데이트" 허용
+    autoUpdater.allowPrerelease = true; // 프리릴리즈 버전 허용
 
     autoUpdater.on('checking-for-update', () => {
       lastUpdateCheckedAt = new Date().toISOString();

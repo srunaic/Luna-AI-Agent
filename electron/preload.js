@@ -34,7 +34,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
       'save-file',
       'llm-connection',
       'update-status',
-      'open-settings'
+      'open-settings',
+      'deep_learning_status'
     ];
 
     if (validChannels.includes(channel)) {
@@ -44,7 +45,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Generic send
   send: (channel, data) => {
-    const validChannels = ['popout-chat', 'new-chat-window', 'update-editor-state', 'terminal-input', 'set-model'];
+    const validChannels = [
+      'popout-chat',
+      'new-chat-window',
+      'update-editor-state',
+      'terminal-input',
+      'set-model',
+      'start_deep_learning',
+      'stop_deep_learning',
+      'get_deep_learning_status'
+    ];
     if (validChannels.includes(channel)) {
       ipcRenderer.send(channel, data);
     }
