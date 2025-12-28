@@ -187,7 +187,13 @@ class AgentRuntime {
                 if (res.statusCode < 200 || res.statusCode >= 300) {
                     let body = '';
                     res.on('data', (chunk) => body += chunk);
-                    res.on('end', () => reject(new Error(`Ollama HTTP ${res.statusCode}: ${body}`)));
+                    res.on('end', () => {
+                        let errMsg = `Ollama HTTP ${res.statusCode}: ${body}`;
+                        if (res.statusCode === 500 && body.includes('runner')) {
+                            errMsg = "Ollama가 모델을 로드하지 못했습니다. (메모리 부족 또는 서버 오류). Ollama를 재시작하거나 더 가벼운 모델을 사용해 보세요.";
+                        }
+                        reject(new Error(errMsg));
+                    });
                     return;
                 }
 
@@ -235,6 +241,13 @@ class AgentRuntime {
             });
 
             req.on('error', (e) => reject(new Error(`Ollama connection failed: ${e.message}`)));
+
+            // 타임아웃 설정 (60초 동안 아무 응답이 없으면 연결 종료)
+            req.setTimeout(60000, () => {
+                req.destroy();
+                reject(new Error("Ollama 응답 타임아웃 (60초). 서버가 너무 느리거나 모델 로드에 실패했습니다. Ollama를 재시작해 보세요."));
+            });
+
             req.write(data);
             req.end();
         });
@@ -250,9 +263,14 @@ class AgentRuntime {
         const projectContext = context.projectRoot ? `Project Root: ${context.projectRoot}\n` : "";
         const historyText = context.history?.length > 0 ? `Conversation History:\n${context.history.map(h => `${h.role}: ${h.content}`).join('\n')}\n` : "";
 
+        const systemInstructions = context.llmSettings?.systemInstructions
+            ? `[USER SYSTEM INSTRUCTIONS]\n${context.llmSettings.systemInstructions}\n`
+            : "";
+
         return `You are Luna, a high-performance AI Agent and Orchestrator. 
 Your goal is to execute the user's request with precision and systemic thinking.
 
+${systemInstructions}
 [MASTER PROTOCOL]
 1. ANALYZE: Understand the core objective and constraints.
 2. PLAN: Mentally map out the steps needed (e.g., list files -> read content -> modify -> verify).

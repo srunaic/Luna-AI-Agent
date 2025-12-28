@@ -20,7 +20,7 @@ let editorState = {
 // Initialize UI
 function initializeUI() {
     console.log('Initializing Luna UI components...');
-    
+
     // 1. 로딩 화면을 최대한 빨리 닫습니다. (안정성 확보)
     setTimeout(() => {
         const loading = document.getElementById('loading');
@@ -94,7 +94,7 @@ function applySavedLayout() {
 
         const th = Number(localStorage.getItem('luna.terminalHeight') || '');
         if (terminalPanel && !terminalCollapsed && Number.isFinite(th) && th > 0) terminalPanel.style.height = `${th}px`;
-    } catch (_) {}
+    } catch (_) { }
 }
 
 function persistLayout() {
@@ -114,16 +114,16 @@ function persistLayout() {
             const h = terminalPanel.getBoundingClientRect().height;
             if (h > 0) localStorage.setItem('luna.terminalHeight', String(h));
         }
-    } catch (_) {}
+    } catch (_) { }
 }
 
 function relayoutEditors() {
     try {
         if (editor) editor.layout();
-    } catch (_) {}
+    } catch (_) { }
     try {
         if (terminalFitAddon) terminalFitAddon.fit();
-    } catch (_) {}
+    } catch (_) { }
 }
 
 function clamp(n, min, max) {
@@ -357,7 +357,7 @@ function setupTerminal() {
             terminal.loadAddon(terminalFitAddon);
             terminal.open(container);
             terminalFitAddon.fit();
-            
+
             window.addEventListener('resize', () => terminalFitAddon.fit());
         } else {
             terminal.open(container);
@@ -367,7 +367,7 @@ function setupTerminal() {
         terminal.attachCustomKeyEventHandler((arg) => {
             // Always focus terminal when interacting
             if (arg.type === 'mousedown' || arg.type === 'keydown') {
-                try { terminal.focus(); } catch (_) {}
+                try { terminal.focus(); } catch (_) { }
             }
 
             // Ctrl + C: Only copy if there's a selection, otherwise let it through (for SIGINT)
@@ -414,7 +414,7 @@ function setupTerminal() {
 
         // Ensure terminal receives focus when clicked
         container.addEventListener('mousedown', () => {
-            try { terminal.focus(); } catch (_) {}
+            try { terminal.focus(); } catch (_) { }
         });
 
         // --- Local line-editing (works with PowerShell over pipes) ---
@@ -474,12 +474,12 @@ function loadMonaco() {
     }
 
     try {
-        require.config({ paths: { 'vs': 'https://unpkg.com/monaco-editor@0.44.0/min/vs' }});
-        require(['vs/editor/editor.main'], function() {
+        require.config({ paths: { 'vs': 'https://unpkg.com/monaco-editor@0.44.0/min/vs' } });
+        require(['vs/editor/editor.main'], function () {
             // 로딩 성공 시 에디터 생성
             editorContainer.innerHTML = ''; // 로딩 메시지 제거
             initEditor();
-        }, function(err) {
+        }, function (err) {
             console.error('Monaco load failed:', err);
             editorContainer.innerHTML = '<div style="display:flex; justify-content:center; align-items:center; height:100%; color:#f48771; text-align:center;">Editor load failed.<br>Please check internet connection.</div>';
         });
@@ -680,7 +680,7 @@ function setupIPCListeners() {
                 const msg = payload?.message ? ` - ${payload.message}` : '';
                 statusEl.textContent = `Update status: ${payload?.state || 'idle'}${extra}${checkedAt}${msg}`;
             }
-        } catch (_) {}
+        } catch (_) { }
     });
 }
 
@@ -695,6 +695,7 @@ async function openSettingsModal() {
     const temperatureEl = document.getElementById('ollama-temperature');
     const baseUrlEl = document.getElementById('openai-baseUrl');
     const apiKeyEl = document.getElementById('openai-apiKey');
+    const systemInstructionsEl = document.getElementById('luna-system-instructions');
     const firewallBtn = document.getElementById('ollama-firewall-allow');
     const statusEl = document.getElementById('settings-status');
     const versionEl = document.getElementById('app-version');
@@ -714,6 +715,7 @@ async function openSettingsModal() {
     if (temperatureEl) temperatureEl.value = String(settings?.ollama?.temperature ?? 0.2);
     if (baseUrlEl) baseUrlEl.value = settings?.openai?.baseUrl ?? 'https://api.openai.com';
     if (apiKeyEl) apiKeyEl.value = settings?.openai?.apiKey ?? '';
+    if (systemInstructionsEl) systemInstructionsEl.value = settings?.systemInstructions ?? '';
     if (statusEl) statusEl.textContent = '';
 
     // App version + last update info
@@ -744,7 +746,8 @@ async function openSettingsModal() {
             openai: {
                 baseUrl: (baseUrlEl?.value || 'https://api.openai.com').trim(),
                 apiKey: (apiKeyEl?.value || '').trim()
-            }
+            },
+            systemInstructions: (systemInstructionsEl?.value || '').trim()
         };
         await window.electronAPI.setSettings(next);
         if (statusEl) statusEl.textContent = 'Saved.';
@@ -920,7 +923,7 @@ async function setupPackageManager() {
         statusEl.textContent = 'Updating store...';
         const marketItems = await window.electronAPI.fetchMarketplace();
         marketListEl.innerHTML = '';
-        
+
         marketItems.forEach(item => {
             const el = document.createElement('div');
             el.className = 'pkg-item';
@@ -931,16 +934,16 @@ async function setupPackageManager() {
                 </div>
                 <button class="btn btn-sm primary install-btn" data-url="${item.downloadUrl}" data-id="${item.id}">Get</button>
             `;
-            
+
             el.querySelector('.install-btn').onclick = async (e) => {
                 const btn = e.target;
                 const url = btn.dataset.url;
                 const id = btn.dataset.id;
-                
+
                 btn.disabled = true;
                 btn.textContent = '...';
                 statusEl.textContent = `Installing ${id}...`;
-                
+
                 const res = await window.electronAPI.installExtension(url, id);
                 if (res.success) {
                     statusEl.textContent = `${id} installed!`;
@@ -951,7 +954,7 @@ async function setupPackageManager() {
                 btn.disabled = false;
                 btn.textContent = 'Get';
             };
-            
+
             marketListEl.appendChild(el);
         });
         statusEl.textContent = '';

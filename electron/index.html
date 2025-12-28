@@ -660,6 +660,13 @@
                     <input id="openai-apiKey" placeholder="sk-..." />
                     <div class="field-hint">주의: 로컬 PC(userData/settings.json)에 저장됩니다.</div>
                 </div>
+
+                <div style="font-size:12px; font-weight:600; color:#fff; margin-top:12px; border-top: 1px solid var(--border-color); padding-top: 10px;">Luna's Soul (Personality)</div>
+                <div style="display: flex; flex-direction: column; gap: 6px;">
+                    <label for="luna-system-instructions" style="font-size: 12px; color: #cfcfcf;">System Instructions</label>
+                    <textarea id="luna-system-instructions" style="background:#1f1f1f; color:#fff; border:1px solid #3e3e42; border-radius:6px; padding:8px; font-size:12px; outline:none; height:80px; resize:vertical; font-family: inherit;" placeholder="예: 너는 최고의 풀스택 개발자야. 모든 코드에는 한글 주석을 달아줘."></textarea>
+                    <div class="field-hint">루나의 행동 방식과 말투를 결정합니다. 공백 시 기본 프로토콜이 적용됩니다.</div>
+                </div>
             </div>
             <div class="modal-footer">
                 <span id="settings-status" style="margin-right:auto; font-size:11px; color:#9a9a9a;"></span>
