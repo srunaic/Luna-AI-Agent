@@ -51,6 +51,46 @@ function setupTerminal() {
     }
 
     try {
+        let inputBuffer = '';
+
+        const writeLocal = (text) => terminal.write(text);
+        const sendToShell = (text) => window.electronAPI?.sendTerminalInput(text);
+
+        const handleEnter = () => {
+            writeLocal('\r\n');
+            if (inputBuffer.length > 0) {
+                sendToShell(inputBuffer + '\r\n');
+                inputBuffer = '';
+            } else {
+                sendToShell('\r\n');
+            }
+        };
+
+        const handleBackspace = () => {
+            if (inputBuffer.length === 0) return;
+            inputBuffer = inputBuffer.slice(0, -1);
+            // Move back, erase, move back
+            writeLocal('\b \b');
+        };
+
+        const pasteText = (text) => {
+            if (!text) return;
+            // Normalize newlines
+            const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+            const lines = normalized.split('\n');
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                if (line) {
+                    inputBuffer += line;
+                    writeLocal(line);
+                }
+                if (i < lines.length - 1) {
+                    // Execute line breaks as Enter
+                    handleEnter();
+                }
+            }
+        };
+
         terminal = new Terminal({
             theme: { background: '#1e1e1e', foreground: '#ffffff' },
             fontSize: 12,
@@ -72,23 +112,37 @@ function setupTerminal() {
 
         // --- Copy/Paste and Key Handling ---
         terminal.attachCustomKeyEventHandler((arg) => {
+            // Always focus terminal when interacting
+            if (arg.type === 'mousedown' || arg.type === 'keydown') {
+                try { terminal.focus(); } catch (_) {}
+            }
+
             // Ctrl + C: Only copy if there's a selection, otherwise let it through (for SIGINT)
-            if (arg.ctrlKey && arg.code === 'KeyC') {
+            if ((arg.ctrlKey && (arg.code === 'KeyC' || arg.key === 'c' || arg.key === 'C')) ||
+                (arg.ctrlKey && arg.shiftKey && (arg.code === 'KeyC' || arg.key === 'c' || arg.key === 'C'))) {
                 if (terminal.hasSelection()) {
                     window.electronAPI?.clipboard.writeText(terminal.getSelection());
                     return false; // Prevent default
                 }
             }
+
             // Ctrl + V: Paste from clipboard
-            if (arg.ctrlKey && arg.code === 'KeyV' && arg.type === 'keydown') {
-                window.electronAPI?.clipboard.readText().then(text => {
-                    if (text) window.electronAPI?.sendTerminalInput(text);
-                });
+            if ((arg.ctrlKey && (arg.code === 'KeyV' || arg.key === 'v' || arg.key === 'V') && arg.type === 'keydown') ||
+                (arg.ctrlKey && arg.shiftKey && (arg.code === 'KeyV' || arg.key === 'v' || arg.key === 'V') && arg.type === 'keydown')) {
+                window.electronAPI?.clipboard.readText().then(text => pasteText(text));
                 return false;
             }
+
+            // Shift+Insert paste (common terminal shortcut)
+            if (arg.shiftKey && arg.code === 'Insert' && arg.type === 'keydown') {
+                window.electronAPI?.clipboard.readText().then(text => pasteText(text));
+                return false;
+            }
+
             // Ctrl + L: Clear terminal (Manual "지우기")
             if (arg.ctrlKey && arg.code === 'KeyL') {
                 terminal.clear();
+                inputBuffer = '';
                 return false;
             }
             return true;
@@ -101,15 +155,41 @@ function setupTerminal() {
                 window.electronAPI?.clipboard.writeText(terminal.getSelection());
                 terminal.clearSelection();
             } else {
-                window.electronAPI?.clipboard.readText().then(text => {
-                    if (text) window.electronAPI?.sendTerminalInput(text);
-                });
+                window.electronAPI?.clipboard.readText().then(text => pasteText(text));
             }
         });
 
-        terminal.onData(data => {
-            // Send input to main process (PowerShell)
-            window.electronAPI?.sendTerminalInput(data);
+        // Ensure terminal receives focus when clicked
+        container.addEventListener('mousedown', () => {
+            try { terminal.focus(); } catch (_) {}
+        });
+
+        // --- Local line-editing (works with PowerShell over pipes) ---
+        terminal.onData((data) => {
+            // Enter
+            if (data === '\r') {
+                handleEnter();
+                return;
+            }
+            // Backspace (DEL)
+            if (data === '\u007f') {
+                handleBackspace();
+                return;
+            }
+            // Ctrl+C (interrupt)
+            if (data === '\x03') {
+                sendToShell('\x03');
+                writeLocal('^C\r\n');
+                inputBuffer = '';
+                return;
+            }
+
+            // Ignore escape sequences (arrows etc.) since stdin is a pipe
+            if (data.startsWith('\x1b')) return;
+
+            // Printable text (including IME chunks)
+            inputBuffer += data;
+            writeLocal(data);
         });
 
         window.electronAPI?.onTerminalData(data => {
