@@ -34,7 +34,13 @@ class AgentRuntime {
             let turn = 0;
             let maxTurns = 5;
             let history = [];
-            // ... (기존 루프 유지)
+
+            while (turn < maxTurns) {
+                turn++;
+                onResponse({
+                    type: 'status',
+                    data: { state: 'thinking', message: `Orchestrating (Turn ${turn})...`, taskId: context.taskId }
+                });
 
                 let responseText = "";
                 if (model === 'ollama') {
@@ -122,7 +128,6 @@ class AgentRuntime {
         return new Promise((resolve, reject) => {
             const cfg = context?.llmSettings?.ollama || { host: 'localhost', port: 11434, protocol: 'http' };
             const rawHost = String(cfg.host || 'localhost').trim();
-            // Windows에서 localhost가 ::1로 해석되면 Ollama가 127.0.0.1만 리슨할 때 ECONNREFUSED 발생 가능
             const host = rawHost.toLowerCase() === 'localhost' ? '127.0.0.1' : rawHost;
             const port = Number(cfg.port || 11434);
             const protocol = (cfg.protocol === 'https') ? 'https' : 'http';
@@ -137,9 +142,9 @@ class AgentRuntime {
                 options: {
                     num_predict: numPredict,
                     temperature,
-                    num_ctx: directMode ? 4096 : 2048, // Reduce context window for much faster TTFT
-                    top_k: 20,     // Speed up sampling
-                    top_p: 0.9     // Speed up sampling
+                    num_ctx: directMode ? 4096 : 2048,
+                    top_k: 20,
+                    top_p: 0.9
                 }
             };
             const data = JSON.stringify(payload);
@@ -158,12 +163,20 @@ class AgentRuntime {
 
             const client = protocol === 'https' ? https : http;
             const req = client.request(options, (res) => {
+                if (res.statusCode < 200 || res.statusCode >= 300) {
+                    let body = '';
+                    res.on('data', (chunk) => body += chunk);
+                    res.on('end', () => reject(new Error(`Ollama HTTP ${res.statusCode}: ${body}`)));
+                    return;
+                }
+
                 let fullText = "";
-                let buffer = ""; // Robust buffer for stream chunks
+                let buffer = "";
 
                 res.on('data', (chunk) => {
                     buffer += chunk.toString();
                     
+                    // Robust JSON Stream Parsing
                     let boundary = buffer.indexOf('}');
                     while (boundary !== -1) {
                         const jsonStr = buffer.substring(0, boundary + 1);
@@ -185,7 +198,7 @@ class AgentRuntime {
                                 return;
                             }
                         } catch (e) {
-                            // ignore partials
+                            // ignore partials/errors during parsing
                         }
                         boundary = buffer.indexOf('}');
                     }
@@ -194,95 +207,13 @@ class AgentRuntime {
                 res.on('end', () => resolve(fullText));
             });
 
-            req.on('error', reject);
-            req.write(data);
-            req.end();
-        });
-    }                
-                if (res.statusCode < 200 || res.statusCode >= 300) {
-                    let body = '';
-                    res.on('data', (chunk) => body += chunk);
-                    res.on('end', () => {
-                        reject(new Error(`Ollama HTTP ${res.statusCode}: ${body || 'Unknown error'}`));
-                    });
-                    return;
-                }
-
-                res.on('data', (chunk) => {
-                    buffer += chunk.toString();
-                    
-                    // Process buffer to find complete JSON objects
-                    let startIdx;
-                    while ((startIdx = buffer.indexOf('{')) !== -1) {
-                        let depth = 0;
-                        let endIdx = -1;
-                        
-                        for (let i = startIdx; i < buffer.length; i++) {
-                            if (buffer[i] === '{') depth++;
-                            else if (buffer[i] === '}') {
-                                depth--;
-                                if (depth === 0) {
-                                    endIdx = i;
-                                    break;
-                                }
-                            }
-                        }
-
-                        if (endIdx !== -1) {
-                            const jsonStr = buffer.substring(startIdx, endIdx + 1);
-                            buffer = buffer.substring(endIdx + 1);
-                            
-                            try {
-                                const parsed = JSON.parse(jsonStr);
-                                if (parsed.error) {
-                                    reject(new Error(`Ollama error: ${parsed.error}`));
-                                    return;
-                                }
-                                if (parsed.response) {
-                                    fullText += parsed.response;
-                                    onResponse({
-                                        type: 'status',
-                                        data: { 
-                                            state: 'thinking', 
-                                            message: fullText,
-                                            isPartial: true,
-                                            taskId: context.taskId
-                                        }
-                                    });
-                                }
-                                if (parsed.done) {
-                                    // Successfully completed
-                                }
-                            } catch (e) {
-                                // Skip invalid JSON
-                            }
-                        } else {
-                            // No complete JSON object found yet, wait for more data
-                            break;
-                        }
-                    }
-                });
-
-                res.on('end', () => {
-                    if (fullText.trim().length === 0) {
-                        reject(new Error(`Ollama returned empty response. Try a different model in Settings.`));
-                    } else {
-                        resolve(fullText);
-                    }
-                });
-            });
-
-            req.on('error', (e) => {
-                reject(new Error(`Ollama connection failed: ${e.message}. Make sure Ollama is running on ${host}:${port}`));
-            });
-
+            req.on('error', (e) => reject(new Error(`Ollama connection failed: ${e.message}`)));
             req.write(data);
             req.end();
         });
     }
 
     async callOpenAI(instruction, context, onResponse) {
-        // Placeholder for OpenAI - in Phase 1, we expect user to provide API key in settings
         return "OpenAI integration requires an API key. Please configure it in Settings (Coming soon). For now, use Ollama for local AI.";
     }
 
