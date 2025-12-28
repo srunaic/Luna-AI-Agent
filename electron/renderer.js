@@ -48,14 +48,50 @@ function applySavedLayout() {
         const right = document.getElementById('right-panel');
         const terminalPanel = document.getElementById('terminal-panel');
 
+        const sidebarCollapsed = localStorage.getItem('luna.sidebarCollapsed') === 'true';
+        if (sidebar) {
+            if (sidebarCollapsed) {
+                sidebar.style.width = '0px';
+                sidebar.style.minWidth = '0px';
+                sidebar.style.borderRight = 'none';
+            } else {
+                sidebar.style.minWidth = '';
+                sidebar.style.borderRight = '';
+            }
+        }
+
         const sw = Number(localStorage.getItem('luna.sidebarWidth') || '');
-        if (sidebar && Number.isFinite(sw) && sw > 0) sidebar.style.width = `${sw}px`;
+        if (sidebar && !sidebarCollapsed && Number.isFinite(sw) && sw > 0) sidebar.style.width = `${sw}px`;
+
+        const rightCollapsed = localStorage.getItem('luna.rightPanelCollapsed') === 'true';
+        if (right) {
+            if (rightCollapsed) {
+                right.style.width = '0px';
+                right.style.minWidth = '0px';
+                right.style.borderLeft = 'none';
+            } else {
+                right.style.minWidth = '';
+                right.style.borderLeft = '';
+            }
+        }
 
         const rw = Number(localStorage.getItem('luna.rightPanelWidth') || '');
-        if (right && Number.isFinite(rw) && rw > 0) right.style.width = `${rw}px`;
+        if (right && !rightCollapsed && Number.isFinite(rw) && rw > 0) right.style.width = `${rw}px`;
+
+        const terminalCollapsed = localStorage.getItem('luna.terminalCollapsed') === 'true';
+        if (terminalPanel) {
+            if (terminalCollapsed) {
+                terminalPanel.style.height = '0px';
+                terminalPanel.style.minHeight = '0px';
+                terminalPanel.style.borderTop = 'none';
+            } else {
+                terminalPanel.style.minHeight = '';
+                terminalPanel.style.borderTop = '';
+            }
+        }
 
         const th = Number(localStorage.getItem('luna.terminalHeight') || '');
-        if (terminalPanel && Number.isFinite(th) && th > 0) terminalPanel.style.height = `${th}px`;
+        if (terminalPanel && !terminalCollapsed && Number.isFinite(th) && th > 0) terminalPanel.style.height = `${th}px`;
     } catch (_) {}
 }
 
@@ -64,9 +100,18 @@ function persistLayout() {
         const sidebar = document.getElementById('sidebar');
         const right = document.getElementById('right-panel');
         const terminalPanel = document.getElementById('terminal-panel');
-        if (sidebar) localStorage.setItem('luna.sidebarWidth', String(sidebar.getBoundingClientRect().width));
-        if (right) localStorage.setItem('luna.rightPanelWidth', String(right.getBoundingClientRect().width));
-        if (terminalPanel) localStorage.setItem('luna.terminalHeight', String(terminalPanel.getBoundingClientRect().height));
+        if (sidebar) {
+            const w = sidebar.getBoundingClientRect().width;
+            if (w > 0) localStorage.setItem('luna.sidebarWidth', String(w));
+        }
+        if (right) {
+            const w = right.getBoundingClientRect().width;
+            if (w > 0) localStorage.setItem('luna.rightPanelWidth', String(w));
+        }
+        if (terminalPanel) {
+            const h = terminalPanel.getBoundingClientRect().height;
+            if (h > 0) localStorage.setItem('luna.terminalHeight', String(h));
+        }
     } catch (_) {}
 }
 
@@ -136,8 +181,33 @@ function setupSplitters() {
             startDrag('col', e, (ev) => {
                 const next = clamp(startW + (ev.clientX - startX), 180, 600);
                 sidebar.style.width = `${next}px`;
+                sidebar.style.minWidth = '';
+                sidebar.style.borderRight = '';
+                localStorage.setItem('luna.sidebarCollapsed', 'false');
                 relayoutEditors();
             });
+        });
+
+        splitterLeft.addEventListener('dblclick', (e) => {
+            e.preventDefault();
+            const collapsed = localStorage.getItem('luna.sidebarCollapsed') === 'true';
+            if (!collapsed) {
+                const current = sidebar.getBoundingClientRect().width;
+                if (current > 0) localStorage.setItem('luna.sidebarWidth', String(current));
+                localStorage.setItem('luna.sidebarCollapsed', 'true');
+                sidebar.style.width = '0px';
+                sidebar.style.minWidth = '0px';
+                sidebar.style.borderRight = 'none';
+            } else {
+                localStorage.setItem('luna.sidebarCollapsed', 'false');
+                const saved = Number(localStorage.getItem('luna.sidebarWidth') || 250);
+                const next = clamp(saved, 180, 600);
+                sidebar.style.width = `${next}px`;
+                sidebar.style.minWidth = '';
+                sidebar.style.borderRight = '';
+            }
+            persistLayout();
+            relayoutEditors();
         });
     }
 
@@ -149,8 +219,33 @@ function setupSplitters() {
                 // Dragging splitter: moving right decreases right panel width, moving left increases.
                 const next = clamp(startW - (ev.clientX - startX), 280, 800);
                 right.style.width = `${next}px`;
+                right.style.minWidth = '';
+                right.style.borderLeft = '';
+                localStorage.setItem('luna.rightPanelCollapsed', 'false');
                 relayoutEditors();
             });
+        });
+
+        splitterRight.addEventListener('dblclick', (e) => {
+            e.preventDefault();
+            const collapsed = localStorage.getItem('luna.rightPanelCollapsed') === 'true';
+            if (!collapsed) {
+                const current = right.getBoundingClientRect().width;
+                if (current > 0) localStorage.setItem('luna.rightPanelWidth', String(current));
+                localStorage.setItem('luna.rightPanelCollapsed', 'true');
+                right.style.width = '0px';
+                right.style.minWidth = '0px';
+                right.style.borderLeft = 'none';
+            } else {
+                localStorage.setItem('luna.rightPanelCollapsed', 'false');
+                const saved = Number(localStorage.getItem('luna.rightPanelWidth') || 400);
+                const next = clamp(saved, 280, 800);
+                right.style.width = `${next}px`;
+                right.style.minWidth = '';
+                right.style.borderLeft = '';
+            }
+            persistLayout();
+            relayoutEditors();
         });
     }
 
@@ -162,8 +257,33 @@ function setupSplitters() {
                 // Dragging splitter down decreases terminal height, up increases.
                 const next = clamp(startH - (ev.clientY - startY), 100, 600);
                 terminalPanel.style.height = `${next}px`;
+                terminalPanel.style.minHeight = '';
+                terminalPanel.style.borderTop = '';
+                localStorage.setItem('luna.terminalCollapsed', 'false');
                 relayoutEditors();
             });
+        });
+
+        splitterBottom.addEventListener('dblclick', (e) => {
+            e.preventDefault();
+            const collapsed = localStorage.getItem('luna.terminalCollapsed') === 'true';
+            if (!collapsed) {
+                const current = terminalPanel.getBoundingClientRect().height;
+                if (current > 0) localStorage.setItem('luna.terminalHeight', String(current));
+                localStorage.setItem('luna.terminalCollapsed', 'true');
+                terminalPanel.style.height = '0px';
+                terminalPanel.style.minHeight = '0px';
+                terminalPanel.style.borderTop = 'none';
+            } else {
+                localStorage.setItem('luna.terminalCollapsed', 'false');
+                const saved = Number(localStorage.getItem('luna.terminalHeight') || 200);
+                const next = clamp(saved, 100, 600);
+                terminalPanel.style.height = `${next}px`;
+                terminalPanel.style.minHeight = '';
+                terminalPanel.style.borderTop = '';
+            }
+            persistLayout();
+            relayoutEditors();
         });
     }
 
