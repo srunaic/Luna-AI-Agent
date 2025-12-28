@@ -100,3 +100,4 @@ export type AgentToEditorMessage = PlanMessage | ActionMessage | StatusUpdateMes
 export type WebviewMessage = WebviewToExtensionMessage | ExtensionToWebviewMessage;
 
 
+
