@@ -36,6 +36,6 @@ export interface WebviewToExtensionMessage {
 }
 
 export interface ExtensionToWebviewMessage {
-  type: 'editor_context' | 'plan_update' | 'action_log' | 'status_update' | 'task_complete' | 'llm_connection' | 'update_status';
+  type: 'editor_context' | 'plan_update' | 'action_log' | 'status_update' | 'task_complete' | 'llm_connection' | 'update_status' | 'editor_state_update';
   data: any;
 }
