@@ -46,7 +46,7 @@ function defaultSettings() {
       host: 'localhost',
       port: 11434,
       // Local Ollama model name (must exist in `ollama list`)
-      model: 'llama3',
+      model: 'luna-soul',
       // Speed: limit generated tokens to reduce latency (higher = slower)
       numPredict: 256,
       // Optional: creativity/speed tradeoff (0.0-1.0)
@@ -138,7 +138,7 @@ function createWindow() {
   mainWindow.on('closed', () => {
     // 메인 창 닫히면 채팅 창들도 닫음
     for (const w of chatWindows) {
-      try { w.close(); } catch (_) {}
+      try { w.close(); } catch (_) { }
     }
     chatWindows = [];
     mainWindow = null;
@@ -153,7 +153,7 @@ function createWindow() {
 function sendLLMConnectionStatus(payload) {
   if (mainWindow) mainWindow.webContents.send('llm-connection', payload);
   for (const w of chatWindows) {
-    try { w.webContents.send('llm-connection', payload); } catch (_) {}
+    try { w.webContents.send('llm-connection', payload); } catch (_) { }
   }
 }
 
@@ -186,7 +186,7 @@ function checkOllamaOnce(timeoutMs = 700) {
 
     req.on('error', () => resolve(false));
     req.setTimeout(timeoutMs, () => {
-      try { req.destroy(); } catch (_) {}
+      try { req.destroy(); } catch (_) { }
       resolve(false);
     });
     req.end();
@@ -250,7 +250,7 @@ function checkOpenAIOnce(timeoutMs = 1200) {
       message: `OpenAI connection failed: ${e.message}`
     }));
     req.setTimeout(timeoutMs, () => {
-      try { req.destroy(); } catch (_) {}
+      try { req.destroy(); } catch (_) { }
       resolve({
         provider: 'openai',
         connected: false,
@@ -323,7 +323,7 @@ function sendUpdateStatus(payload) {
   lastUpdateState = enriched;
   if (mainWindow) mainWindow.webContents.send('update-status', enriched);
   for (const w of chatWindows) {
-    try { w.webContents.send('update-status', enriched); } catch (_) {}
+    try { w.webContents.send('update-status', enriched); } catch (_) { }
   }
 }
 
@@ -451,7 +451,7 @@ ipcMain.on('popout-chat', () => {
 // Extensions Path
 const EXTENSIONS_PATH = path.join(app.getPath('userData'), 'extensions');
 if (!fs.existsSync(EXTENSIONS_PATH)) {
-    fs.mkdirSync(EXTENSIONS_PATH, { recursive: true });
+  fs.mkdirSync(EXTENSIONS_PATH, { recursive: true });
 }
 
 // ... existing code ...
@@ -504,13 +504,13 @@ ipcMain.handle('install-extension', async (event, { url, id }) => {
       const file = fs.createWriteStream(zipPath);
       https.get(url, (res) => {
         if (res.statusCode === 302 || res.statusCode === 301) { // 리다이렉트 대응
-            https.get(res.headers.location, (res2) => {
-                res2.pipe(file);
-                file.on('finish', () => { file.close(); resolve(); });
-            });
-        } else {
-            res.pipe(file);
+          https.get(res.headers.location, (res2) => {
+            res2.pipe(file);
             file.on('finish', () => { file.close(); resolve(); });
+          });
+        } else {
+          res.pipe(file);
+          file.on('finish', () => { file.close(); resolve(); });
         }
       }).on('error', reject);
     });
@@ -522,12 +522,12 @@ ipcMain.handle('install-extension', async (event, { url, id }) => {
     // 3. 만약 압축을 풀었는데 안에 폴더가 하나 더 있다면 (GitHub ZIP 특성)
     const content = fs.readdirSync(targetPath);
     if (content.length === 1 && fs.lstatSync(path.join(targetPath, content[0])).isDirectory()) {
-        const subDir = path.join(targetPath, content[0]);
-        const files = fs.readdirSync(subDir);
-        files.forEach(f => {
-            fs.renameSync(path.join(subDir, f), path.join(targetPath, f));
-        });
-        fs.rmdirSync(subDir);
+      const subDir = path.join(targetPath, content[0]);
+      const files = fs.readdirSync(subDir);
+      files.forEach(f => {
+        fs.renameSync(path.join(subDir, f), path.join(targetPath, f));
+      });
+      fs.rmdirSync(subDir);
     }
 
     // 4. Ensure manifest.json exists
@@ -608,10 +608,10 @@ ipcMain.handle('firewall-allow-ollama', async () => {
 
     try {
       execSync(`netsh advfirewall firewall add rule name="${inName}" dir=in action=allow protocol=TCP localport=11434`, { stdio: 'ignore' });
-    } catch (_) {}
+    } catch (_) { }
     try {
       execSync(`netsh advfirewall firewall add rule name="${outName}" dir=out action=allow protocol=TCP localport=11434`, { stdio: 'ignore' });
-    } catch (_) {}
+    } catch (_) { }
 
     return { success: true, message: 'Added Windows Firewall allow rules for TCP port 11434.' };
   } catch (e) {

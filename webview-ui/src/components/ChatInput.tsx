@@ -59,9 +59,9 @@ export function ChatInput({ onExecute, onCancel, isExecuting, editorContext, onM
     <div className="chat-input-section component-section">
       <div className="model-selector-container">
         <label htmlFor="model-select">Model:</label>
-        <select 
-          id="model-select" 
-          value={model} 
+        <select
+          id="model-select"
+          value={model}
           onChange={(e) => {
             const next = e.target.value;
             setModel(next);
@@ -71,6 +71,7 @@ export function ChatInput({ onExecute, onCancel, isExecuting, editorContext, onM
           className="model-select"
         >
           <option value="ollama">Ollama (Local)</option>
+          <option value="luna-soul">Luna Soul ✨</option>
           <option value="gpt-4o">GPT-4o</option>
           <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
         </select>
