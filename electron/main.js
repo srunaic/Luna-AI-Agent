@@ -354,12 +354,15 @@ function setupAutoUpdater() {
 
     autoUpdater.on('checking-for-update', () => {
       lastUpdateCheckedAt = new Date().toISOString();
-      sendUpdateStatus({ state: 'checking' });
+      sendUpdateStatus({ state: 'checking', message: 'Checking for updates...' });
     });
-    autoUpdater.on('update-available', (info) => sendUpdateStatus({ state: 'available', info, availableVersion: info?.version }));
-    autoUpdater.on('update-not-available', (info) => sendUpdateStatus({ state: 'none', info }));
+    autoUpdater.on('update-available', (info) => sendUpdateStatus({ state: 'available', info, availableVersion: info?.version, message: 'New update found!' }));
+    autoUpdater.on('update-not-available', (info) => sendUpdateStatus({ state: 'none', info, message: 'Up to date' }));
     autoUpdater.on('download-progress', (progress) => sendUpdateStatus({ state: 'downloading', progress }));
-    autoUpdater.on('error', (err) => sendUpdateStatus({ state: 'error', message: err?.message || String(err) }));
+    autoUpdater.on('error', (err) => {
+      const msg = err?.message?.includes('404') ? 'Update check failed (404). If you just pushed a tag, wait 5-10 mins for GitHub to finish processing the release assets.' : (err?.message || String(err));
+      sendUpdateStatus({ state: 'error', message: msg });
+    });
 
     autoUpdater.on('update-downloaded', async (info) => {
       sendUpdateStatus({ state: 'downloaded', info });

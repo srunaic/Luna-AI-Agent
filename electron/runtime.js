@@ -157,8 +157,16 @@ class AgentRuntime {
                 }
 
                 res.on('data', (chunk) => {
-                    const lines = chunk.toString().split('\n');
-                    for (const line of lines) {
+                    const chunkStr = chunk.toString();
+                    // Robust parser for potential multiple JSON objects in one chunk
+                    const jsonObjects = chunkStr.split('}\n{').map((s, i, a) => {
+                        if (a.length === 1) return s;
+                        if (i === 0) return s + '}';
+                        if (i === a.length - 1) return '{' + s;
+                        return '{' + s + '}';
+                    });
+
+                    for (const line of jsonObjects) {
                         if (!line.trim()) continue;
                         try {
                             const parsed = JSON.parse(line);
@@ -183,7 +191,7 @@ class AgentRuntime {
                                 resolve(fullText);
                             }
                         } catch (e) {
-                            // Partials might be invalid JSON, skip
+                            // If it's a partial JSON, wait for next chunk
                         }
                     }
                 });
