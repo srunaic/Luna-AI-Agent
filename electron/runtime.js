@@ -21,10 +21,12 @@ class AgentRuntime {
             if (!isComplexTask) {
                 onResponse({ type: 'status', data: { state: 'thinking', message: '', isPartial: true, taskId: context.taskId } });
                 let fullText = "";
-                if (model === 'ollama') {
+                if (model === 'ollama' || model === 'luna-soul') {
                     fullText = await this.callOllama(instruction, context, onResponse, true); // directMode: true
-                } else {
+                } else if (model === 'openai') {
                     fullText = await this.callOpenAI(instruction, context, onResponse);
+                } else if (model === 'luna-cloud') {
+                    fullText = await this.callLunaCloud(instruction, context, onResponse);
                 }
                 onResponse({ type: 'done', data: { success: true, message: fullText, taskId: context.taskId } });
                 return;
@@ -43,10 +45,12 @@ class AgentRuntime {
                 });
 
                 let responseText = "";
-                if (model === 'ollama') {
+                if (model === 'ollama' || model === 'luna-soul') {
                     responseText = await this.callOllama(instruction, { ...context, history }, onResponse);
-                } else {
+                } else if (model === 'openai') {
                     responseText = await this.callOpenAI(instruction, { ...context, history }, onResponse);
+                } else if (model === 'luna-cloud') {
+                    responseText = await this.callLunaCloud(instruction, { ...context, history }, onResponse);
                 }
 
                 // Parse Thought/Tool/Answer
@@ -141,16 +145,36 @@ class AgentRuntime {
         }
     }
 
+    async callOpenAI(instruction, context, onResponse) {
+        const apiKey = context.llmSettings?.openai?.apiKey;
+        if (!apiKey) {
+            return "OpenAI API Key가 설정되어 있지 않습니다. 설정에서 입력해 주세요.";
+        }
+        return "OpenAI 연결 기능을 구현 중입니다. 현재는 Ollama(Local) 또는 Luna Soul을 이용해 주세요.";
+    }
+
+    async callLunaCloud(instruction, context, onResponse) {
+        const apiKey = context.llmSettings?.luna?.apiKey;
+        if (!apiKey) {
+            return "Luna API Key가 설정되어 있지 않습니다. 현재 로컬 모델(Luna Soul)을 사용 중이시라면 도구 사용이 가능하지만, 클라우드 기능을 이용하시려면 API 키가 필요합니다.";
+        }
+        // Placeholder for future Cloud API implementation
+        return "Luna Cloud API에 연결 중입니다... (현재 기능 개발 중입니다. 로컬 Luna Soul 모델을 권장합니다.)";
+    }
+
     async callOllama(instruction, context, onResponse, directMode = false) {
         const prompt = directMode ? instruction : this.buildPrompt(instruction, context);
 
         return new Promise((resolve, reject) => {
-            const cfg = context?.llmSettings?.ollama || { host: 'localhost', port: 11434, protocol: 'http' };
-            const rawHost = String(cfg.host || 'localhost').trim();
+            const cfg = context.llmSettings?.ollama || {};
+            const rawHost = cfg.host || 'localhost';
             const host = rawHost.toLowerCase() === 'localhost' ? '127.0.0.1' : rawHost;
             const port = Number(cfg.port || 11434);
             const protocol = (cfg.protocol === 'https') ? 'https' : 'http';
-            const modelName = String(cfg.model || 'llama3');
+
+            // If the user explicitly selected 'luna-soul' in the dropdown, use that.
+            // Otherwise use the model defined in the local Ollama settings.
+            const modelName = context.model === 'luna-soul' ? 'luna-soul' : String(cfg.model || 'luna-soul');
             const numPredict = Number(cfg.numPredict || 1024); // Increased for reasoning
             const temperature = Number(cfg.temperature ?? 0.1);
 
