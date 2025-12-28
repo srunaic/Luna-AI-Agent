@@ -265,7 +265,7 @@ function checkOpenAIOnce(timeoutMs = 1200) {
 }
 
 async function checkLLMOnce() {
-  if (activeModel === 'ollama') {
+  if (activeModel === 'ollama' || activeModel === 'luna-soul') {
     const connected = await checkOllamaOnce();
     const cfg = (llmSettings?.ollama || defaultSettings().ollama);
     const host = (cfg.host || 'localhost').trim();
@@ -274,7 +274,7 @@ async function checkLLMOnce() {
       provider: 'ollama',
       connected,
       model: activeModel,
-      message: connected ? `Ollama connected (${host}:${port})` : `Ollama not reachable (${host}:${port})`
+      message: connected ? `Ollama connected (${activeModel})` : `${activeModel} not reachable (localhost:${port})`
     };
   }
 

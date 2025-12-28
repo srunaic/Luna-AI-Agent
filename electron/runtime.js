@@ -145,22 +145,6 @@ class AgentRuntime {
         }
     }
 
-    async callOpenAI(instruction, context, onResponse) {
-        const apiKey = context.llmSettings?.openai?.apiKey;
-        if (!apiKey) {
-            return "OpenAI API Key가 설정되어 있지 않습니다. 설정에서 입력해 주세요.";
-        }
-        return "OpenAI 연결 기능을 구현 중입니다. 현재는 Ollama(Local) 또는 Luna Soul을 이용해 주세요.";
-    }
-
-    async callLunaCloud(instruction, context, onResponse) {
-        const apiKey = context.llmSettings?.luna?.apiKey;
-        if (!apiKey) {
-            return "Luna API Key가 설정되어 있지 않습니다. 현재 로컬 모델(Luna Soul)을 사용 중이시라면 도구 사용이 가능하지만, 클라우드 기능을 이용하시려면 API 키가 필요합니다.";
-        }
-        // Placeholder for future Cloud API implementation
-        return "Luna Cloud API에 연결 중입니다... (현재 기능 개발 중입니다. 로컬 Luna Soul 모델을 권장합니다.)";
-    }
 
     async callOllama(instruction, context, onResponse, directMode = false) {
         const prompt = directMode ? instruction : this.buildPrompt(instruction, context);
@@ -278,7 +262,19 @@ class AgentRuntime {
     }
 
     async callOpenAI(instruction, context, onResponse) {
-        return "OpenAI integration requires an API key. Please configure it in Settings (Coming soon). For now, use Ollama for local AI.";
+        const apiKey = context.llmSettings?.openai?.apiKey;
+        if (!apiKey) {
+            return "OpenAI API Key가 설정되어 있지 않습니다. 설정에서 입력해 주세요.";
+        }
+        return "OpenAI 연결 기능을 구현 중입니다. 현재는 Ollama(Local) 또는 Luna Soul을 이용해 주세요.";
+    }
+
+    async callLunaCloud(instruction, context, onResponse) {
+        const apiKey = context.llmSettings?.luna?.apiKey;
+        if (!apiKey) {
+            return "Luna API Key가 설정되어 있지 않습니다. 현재 로컬 모델(Luna Soul)을 사용 중이시라면 도구 사용이 가능하지만, 클라우드 기능을 이용하시려면 API 키가 필요합니다.";
+        }
+        return "Luna Cloud API에 연결 중입니다... (현재 기능 개발 중입니다. 로컬 Luna Soul 모델을 권장합니다.)";
     }
 
     buildPrompt(instruction, context) {
