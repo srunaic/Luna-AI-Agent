@@ -1,0 +1,86 @@
+.chat-input-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.model-selector-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #2d2d30;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid #3e3e42;
+}
+
+.model-selector-container label {
+  font-size: 11px;
+  color: #aaa;
+  font-weight: bold;
+}
+
+.model-select {
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 12px;
+  outline: none;
+  cursor: pointer;
+  flex: 1;
+}
+
+.input-container {
+  background: #1e1e1e;
+  border: 1px solid #3e3e42;
+  border-radius: 10px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: border-color 0.2s;
+}
+
+.input-container:focus-within {
+  border-color: #007acc;
+}
+
+.instruction-input {
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 14px;
+  line-height: 1.5;
+  resize: none;
+  min-height: 60px;
+  max-height: 200px;
+  outline: none;
+  padding: 4px;
+}
+
+.input-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 4px;
+}
+
+.execute-button {
+  background: #007acc;
+  color: white;
+  border: none;
+  padding: 8px 20px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.execute-button:hover:not(:disabled) {
+  background: #005fa3;
+}
+
+.execute-button:disabled {
+  background: #333;
+  color: #777;
+  cursor: not-allowed;
+}

@@ -1,0 +1,208 @@
+import {
+  EditorToAgentMessage,
+  AgentToEditorMessage,
+  EditorContext,
+  PlanMessage,
+  ActionMessage,
+  StatusUpdateMessage,
+  TaskCompleteMessage,
+  AgentState
+} from './protocol';
+
+export interface AgentClient {
+  executeTask(message: EditorToAgentMessage): AsyncIterableIterator<AgentToEditorMessage>;
+  cancelTask(taskId: string): Promise<void>;
+}
+
+// Mock Agent Client for Phase 0
+// In Phase 1, this will be replaced with actual LLM integration
+export class MockAgentClient implements AgentClient {
+  private activeTasks: Map<string, AbortController> = new Map();
+
+  async *executeTask(message: EditorToAgentMessage): AsyncIterableIterator<AgentToEditorMessage> {
+    if (message.type !== 'task_request') {
+      throw new Error('Unsupported message type');
+    }
+
+    const { taskId, instruction, editorContext } = message;
+    const abortController = new AbortController();
+    this.activeTasks.set(taskId, abortController);
+
+    try {
+      // Step 1: Status update - thinking
+      yield {
+        type: 'status_update',
+        taskId,
+        state: 'thinking'
+      } as StatusUpdateMessage;
+
+      // Simulate thinking time
+      await this.delay(100, abortController.signal);
+
+      // Step 2: Create plan
+      const plan: PlanMessage = {
+        type: 'plan',
+        taskId,
+        steps: [
+          {
+            id: 'analyze_code',
+            title: 'Analyze selected code',
+            status: 'in_progress',
+            description: 'Understanding the code structure and requirements'
+          },
+          {
+            id: 'implement_changes',
+            title: 'Implement requested changes',
+            status: 'pending',
+            description: 'Apply the modifications based on the instruction'
+          },
+          {
+            id: 'verify_changes',
+            title: 'Verify changes',
+            status: 'pending',
+            description: 'Ensure the changes are correct and functional'
+          }
+        ]
+      };
+
+      yield plan;
+
+      // Step 3: Status update - planning
+      yield {
+        type: 'status_update',
+        taskId,
+        state: 'planning'
+      } as StatusUpdateMessage;
+
+      await this.delay(50, abortController.signal);
+
+      // Step 4: Execute actions
+      yield {
+        type: 'status_update',
+        taskId,
+        state: 'executing'
+      } as StatusUpdateMessage;
+
+      // Mock action - read file
+      yield {
+        type: 'action',
+        taskId,
+        actionId: 'read_file_1',
+        tool: 'read_file',
+        input: {
+          filePath: editorContext.activeFile || 'unknown'
+        }
+      } as ActionMessage;
+
+      await this.delay(100, abortController.signal);
+
+      // Mock action - apply diff (simplified)
+      const mockDiff = this.generateMockDiff(instruction, editorContext);
+
+      yield {
+        type: 'action',
+        taskId,
+        actionId: 'apply_diff_1',
+        tool: 'apply_diff',
+        input: { diff: mockDiff }
+      } as ActionMessage;
+
+      // Step 5: Status update - editing
+      yield {
+        type: 'status_update',
+        taskId,
+        state: 'editing'
+      } as StatusUpdateMessage;
+
+      await this.delay(150, abortController.signal);
+
+      // Step 6: Complete task
+      yield {
+        type: 'task_complete',
+        taskId,
+        success: true,
+        message: `Successfully completed: ${instruction}`
+      } as TaskCompleteMessage;
+
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        // Task was cancelled
+        yield {
+          type: 'task_complete',
+          taskId,
+          success: false,
+          message: 'Task cancelled by user'
+        } as TaskCompleteMessage;
+      } else {
+        yield {
+          type: 'status_update',
+          taskId,
+          state: 'failed'
+        } as StatusUpdateMessage;
+
+        yield {
+          type: 'task_complete',
+          taskId,
+          success: false,
+          message: `Task failed: ${error instanceof Error ? error.message : String(error)}`
+        } as TaskCompleteMessage;
+      }
+    } finally {
+      this.activeTasks.delete(taskId);
+    }
+  }
+
+  async cancelTask(taskId: string): Promise<void> {
+    const controller = this.activeTasks.get(taskId);
+    if (controller) {
+      controller.abort();
+      this.activeTasks.delete(taskId);
+    }
+  }
+
+  private async delay(ms: number, signal?: AbortSignal): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(resolve, ms);
+
+      if (signal) {
+        signal.addEventListener('abort', () => {
+          clearTimeout(timeout);
+          reject(new Error('Aborted'));
+        });
+      }
+    });
+  }
+
+  private generateMockDiff(instruction: string, context: EditorContext): string {
+    // Simple mock diff generation based on instruction
+    // In Phase 1, this would be generated by LLM
+    if (instruction.toLowerCase().includes('add comment')) {
+      return `@@ -1,1 +1,2 @@
+ # Added comment
++// This is a new comment
+`;
+    }
+
+    if (instruction.toLowerCase().includes('refactor')) {
+      return `@@ -5,3 +5,4 @@
+-old_function() {
++new_refactored_function() {
++  // Refactored implementation
+ }
+`;
+    }
+
+    // Default mock diff
+    return `@@ -10,1 +10,2 @@
+ console.log('Task completed');
++// Mock change applied
+`;
+  }
+}
+
+// Factory function to create agent client
+export function createAgentClient(): AgentClient {
+  // In Phase 1, this will check configuration and create appropriate client
+  // For now, always return mock client
+  return new MockAgentClient();
+}

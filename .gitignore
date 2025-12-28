@@ -1,0 +1,9 @@
+node_modules/
+out/
+dist-electron/
+dist-temp/
+Luna AI Agent-win32-x64/
+*.log
+.DS_Store
+Thumbs.db
+

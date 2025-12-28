@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Luna AI Agent</title>
+    <style>
+        :root {
+            --sidebar-bg: #252526;
+            --main-bg: #1e1e1e;
+            --border-color: #3e3e42;
+            --text-color: #cccccc;
+            --accent-color: #007acc;
+            --terminal-bg: #1e1e1e;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background-color: var(--main-bg);
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            color: var(--text-color);
+        }
+
+        .app-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* Sidebar (Explorer) */
+        .sidebar {
+            width: 250px;
+            background-color: var(--sidebar-bg);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .nav-buttons {
+            display: flex;
+            gap: 4px;
+        }
+
+        .nav-btn {
+            background: none;
+            border: none;
+            color: var(--text-color);
+            cursor: pointer;
+            padding: 2px 4px;
+            border-radius: 4px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .nav-btn:hover {
+            background-color: #37373d;
+        }
+
+        .nav-btn:disabled {
+            opacity: 0.3;
+            cursor: default;
+        }
+
+        .file-tree {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            padding: 4px 16px;
+            cursor: pointer;
+            font-size: 13px;
+            user-select: none;
+        }
+
+        .file-item:hover {
+            background-color: #37373d;
+        }
+
+        .file-item.active {
+            background-color: #094771;
+        }
+
+        .file-item .icon {
+            margin-right: 8px;
+            width: 16px;
+            text-align: center;
+        }
+
+        /* Main Content (Editor + Terminal) */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--main-bg);
+            min-width: 0;
+        }
+
+        /* Editor Header / Tabs */
+        .editor-header {
+            height: 35px;
+            background-color: var(--sidebar-bg);
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            padding: 0 10px;
+        }
+
+        .file-tab {
+            display: none; /* 기본적으로는 숨김 */
+            align-items: center;
+            gap: 8px;
+            background-color: var(--main-bg);
+            padding: 0 12px;
+            height: 100%;
+            border-right: 1px solid var(--border-color);
+            font-size: 12px;
+            color: #ffffff;
+        }
+
+        .file-tab.active {
+            display: flex;
+        }
+
+        .close-btn {
+            cursor: pointer;
+            font-size: 14px;
+            opacity: 0.6;
+        }
+
+        .close-btn:hover {
+            opacity: 1;
+            color: #f48771;
+        }
+
+        .editor-placeholder {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: #555555;
+            font-size: 14px;
+        }
+
+        .editor-container {
+            flex: 1;
+            position: relative;
+            display: none; /* 파일이 열리기 전엔 숨김 */
+        }
+
+        #monaco-editor {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+        }
+
+        /* Terminal */
+        .terminal-panel {
+            height: 200px;
+            background-color: var(--terminal-bg);
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .terminal-header {
+            padding: 4px 16px;
+            background-color: var(--sidebar-bg);
+            font-size: 11px;
+            font-weight: 600;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .terminal-content {
+            flex: 1;
+            padding: 8px 16px;
+            font-family: 'Consolas', monospace;
+            font-size: 12px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            color: #ffffff;
+        }
+
+        /* Luna chat (Right Panel) */
+        .right-panel {
+            width: 400px;
+            background-color: var(--sidebar-bg);
+            border-left: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between; /* 양 끝으로 배치 */
+            gap: 10px;
+        }
+
+        .chat-header-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .popout-btn {
+            background: none;
+            border: none;
+            color: var(--text-color);
+            cursor: pointer;
+            font-size: 16px;
+            opacity: 0.7;
+            padding: 4px;
+        }
+
+        .popout-btn:hover {
+            opacity: 1;
+            background-color: #37373d;
+            border-radius: 4px;
+        }
+
+        .chat-header img {
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+        }
+
+        .chat-header h2 {
+            margin: 0;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .chat-container {
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .chat-container iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background-color: var(--main-bg);
+            display: block;
+        }
+
+        /* Status Bar */
+        .status-bar {
+            height: 22px;
+            background-color: var(--accent-color);
+            color: white;
+            display: flex;
+            align-items: center;
+            padding: 0 10px;
+            font-size: 11px;
+            justify-content: space-between;
+        }
+
+        .status-bar .left, .status-bar .right {
+            display: flex;
+            align-items: center;
+        }
+
+        /* Loading Overlay */
+        .loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--main-bg);
+            z-index: 9999;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 14px;
+        }
+
+        .loading.hide {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading" class="loading">Loading Luna AI Agent...</div>
+
+    <div class="app-container">
+        <!-- Explorer (Left) -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="explorer-title">
+                    <div class="nav-buttons">
+                        <button id="nav-back" class="nav-btn" title="Back">←</button>
+                        <button id="nav-forward" class="nav-btn" title="Forward">→</button>
+                    </div>
+                    <span>EXPLORER</span>
+                </div>
+            </div>
+            <div id="file-tree" class="file-tree"></div>
+        </div>
+
+        <!-- Main Content (Center) -->
+        <div class="main-content">
+            <div class="editor-header">
+                <div id="file-tab" class="file-tab">
+                    <span id="tab-filename">Welcome</span>
+                    <span id="close-file" class="close-btn">×</span>
+                </div>
+            </div>
+            
+            <div id="editor-placeholder" class="editor-placeholder">
+                <img src="../assets/Luna.jpg" style="width: 64px; height: 64px; opacity: 0.2; margin-bottom: 20px;">
+                <span>Select a file to start editing</span>
+            </div>
+
+            <div id="editor-container" class="editor-container">
+                <div id="monaco-editor"></div>
+            </div>
+
+            <!-- Terminal (Bottom) -->
+            <div class="terminal-panel">
+                <div class="terminal-header">TERMINAL (PowerShell)</div>
+                <div id="terminal-container" style="flex: 1; overflow: hidden; background: black;"></div>
+            </div>
+        </div>
+
+        <!-- Luna chat (Right) -->
+        <div class="right-panel" id="right-panel">
+            <div class="chat-header">
+                <div class="chat-header-left">
+                    <img src="../assets/Luna.jpg" alt="Luna">
+                    <h2>Luna chat</h2>
+                </div>
+                <button id="popout-chat" class="popout-btn" title="Pop out chat">❐</button>
+            </div>
+            <div class="chat-container">
+                <iframe id="ai-panel-iframe"></iframe>
+            </div>
+        </div>
+    </div>
+
+    <div class="status-bar">
+        <div class="left">
+            <span id="status-text">Ready</span>
+            <span id="cursor-position" style="margin-left: 15px;">Ln 1, Col 1</span>
+        </div>
+        <div class="right">
+            <span id="file-encoding">UTF-8</span>
+            <span id="file-language" style="margin-left: 15px;">Plain Text</span>
+        </div>
+    </div>
+
+    <!-- Monaco Editor Loader -->
+    <script src="https://unpkg.com/monaco-editor@0.44.0/min/vs/loader.min.js"></script>
+    <!-- Xterm.js for Terminal -->
+    <link rel="stylesheet" href="https://unpkg.com/xterm@5.3.0/css/xterm.css" />
+    <script src="https://unpkg.com/xterm@5.3.0/lib/xterm.js"></script>
+    <script src="https://unpkg.com/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+    <script src="./renderer.js"></script>
+</body>
+</html>

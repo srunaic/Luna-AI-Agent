@@ -1,0 +1,119 @@
+.action-log-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 200px;
+}
+
+.log-empty {
+  color: #6c6c6c;
+  font-style: italic;
+  font-size: 12px;
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.log-container {
+  flex: 1;
+  overflow-y: auto;
+  max-height: calc(100vh - 400px);
+  padding-right: 8px;
+}
+
+.log-entry {
+  margin-bottom: 12px;
+  padding: 12px;
+  border-radius: 6px;
+  background-color: #252526;
+  border-left: 3px solid;
+}
+
+.log-success {
+  border-left-color: #0e7a0d;
+}
+
+.log-error {
+  border-left-color: #d13438;
+}
+
+.log-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.log-timestamp {
+  font-size: 10px;
+  color: #8e8e93;
+  background-color: #3e3e42;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.log-action {
+  font-size: 12px;
+  font-weight: 500;
+  color: #cccccc;
+  background-color: #007acc;
+  padding: 2px 8px;
+  border-radius: 12px;
+  text-transform: capitalize;
+}
+
+.log-status {
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.status-success {
+  color: #0e7a0d;
+}
+
+.status-error {
+  color: #d13438;
+}
+
+.log-content {
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.log-input,
+.log-result {
+  margin-bottom: 4px;
+}
+
+.log-input strong,
+.log-result strong {
+  color: #cccccc;
+  margin-right: 4px;
+}
+
+.log-input {
+  color: #8e8e93;
+}
+
+.log-result {
+  color: #cccccc;
+}
+
+/* Custom scrollbar */
+.log-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.log-container::-webkit-scrollbar-track {
+  background: #1e1e1e;
+}
+
+.log-container::-webkit-scrollbar-thumb {
+  background: #3e3e42;
+  border-radius: 3px;
+}
+
+.log-container::-webkit-scrollbar-thumb:hover {
+  background: #4e4e52;
+}
+
+
