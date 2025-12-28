@@ -146,6 +146,7 @@ class AgentRuntime {
             const client = protocol === 'https' ? https : http;
             const req = client.request(options, (res) => {
                 let fullText = "";
+                let buffer = ""; // Robust buffer for stream chunks
                 
                 if (res.statusCode < 200 || res.statusCode >= 300) {
                     let body = '';
@@ -157,49 +158,65 @@ class AgentRuntime {
                 }
 
                 res.on('data', (chunk) => {
-                    const chunkStr = chunk.toString();
-                    // Robust parser for potential multiple JSON objects in one chunk
-                    const jsonObjects = chunkStr.split('}\n{').map((s, i, a) => {
-                        if (a.length === 1) return s;
-                        if (i === 0) return s + '}';
-                        if (i === a.length - 1) return '{' + s;
-                        return '{' + s + '}';
-                    });
+                    buffer += chunk.toString();
+                    
+                    // Process buffer to find complete JSON objects
+                    let startIdx;
+                    while ((startIdx = buffer.indexOf('{')) !== -1) {
+                        let depth = 0;
+                        let endIdx = -1;
+                        
+                        for (let i = startIdx; i < buffer.length; i++) {
+                            if (buffer[i] === '{') depth++;
+                            else if (buffer[i] === '}') {
+                                depth--;
+                                if (depth === 0) {
+                                    endIdx = i;
+                                    break;
+                                }
+                            }
+                        }
 
-                    for (const line of jsonObjects) {
-                        if (!line.trim()) continue;
-                        try {
-                            const parsed = JSON.parse(line);
-                            if (parsed.error) {
-                                reject(new Error(`Ollama error: ${parsed.error}`));
-                                return;
+                        if (endIdx !== -1) {
+                            const jsonStr = buffer.substring(startIdx, endIdx + 1);
+                            buffer = buffer.substring(endIdx + 1);
+                            
+                            try {
+                                const parsed = JSON.parse(jsonStr);
+                                if (parsed.error) {
+                                    reject(new Error(`Ollama error: ${parsed.error}`));
+                                    return;
+                                }
+                                if (parsed.response) {
+                                    fullText += parsed.response;
+                                    onResponse({
+                                        type: 'status',
+                                        data: { 
+                                            state: 'thinking', 
+                                            message: fullText,
+                                            isPartial: true,
+                                            taskId: context.taskId
+                                        }
+                                    });
+                                }
+                                if (parsed.done) {
+                                    // Successfully completed
+                                }
+                            } catch (e) {
+                                // Skip invalid JSON
                             }
-                            if (parsed.response) {
-                                fullText += parsed.response;
-                                // Forward partial text to UI
-                                onResponse({
-                                    type: 'status',
-                                    data: { 
-                                        state: 'thinking', 
-                                        message: fullText,
-                                        isPartial: true,
-                                        taskId: context.taskId
-                                    }
-                                });
-                            }
-                            if (parsed.done) {
-                                resolve(fullText);
-                            }
-                        } catch (e) {
-                            // If it's a partial JSON, wait for next chunk
+                        } else {
+                            // No complete JSON object found yet, wait for more data
+                            break;
                         }
                     }
                 });
 
                 res.on('end', () => {
-                    // done should have been handled by parsed.done
                     if (fullText.trim().length === 0) {
-                        reject(new Error(`Ollama returned empty response (model: ${modelName}). Try a different model in Settings.`));
+                        reject(new Error(`Ollama returned empty response. Try a different model in Settings.`));
+                    } else {
+                        resolve(fullText);
                     }
                 });
             });
