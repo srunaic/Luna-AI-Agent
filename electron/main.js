@@ -710,10 +710,14 @@ ipcMain.handle('read-directory', async (e, dirPath) => {
 
 ipcMain.handle('execute-task', async (event, instruction, context) => {
   const taskId = context?.taskId;
+  if (!llmSettings) loadSettings();
   const request = {
     type: 'edit_request',
     instruction,
-    context
+    context: {
+      ...(context || {}),
+      llmSettings
+    }
   };
 
   agentRuntime.processRequest(request, (response) => {

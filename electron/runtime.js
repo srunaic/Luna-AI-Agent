@@ -80,6 +80,13 @@ class AgentRuntime {
         const prompt = this.buildPrompt(instruction, context);
         
         return new Promise((resolve, reject) => {
+            const cfg = context?.llmSettings?.ollama || { host: 'localhost', port: 11434, protocol: 'http' };
+            const rawHost = String(cfg.host || 'localhost').trim();
+            // Windows에서 localhost가 ::1로 해석되면 Ollama가 127.0.0.1만 리슨할 때 ECONNREFUSED 발생 가능
+            const host = rawHost.toLowerCase() === 'localhost' ? '127.0.0.1' : rawHost;
+            const port = Number(cfg.port || 11434);
+            const protocol = (cfg.protocol === 'https') ? 'https' : 'http';
+
             const data = JSON.stringify({
                 model: 'llama3', // Default local model
                 prompt: prompt,
@@ -87,8 +94,8 @@ class AgentRuntime {
             });
 
             const options = {
-                hostname: 'localhost',
-                port: 11434,
+                hostname: host,
+                port,
                 path: '/api/generate',
                 method: 'POST',
                 headers: {
@@ -97,7 +104,8 @@ class AgentRuntime {
                 }
             };
 
-            const req = http.request(options, (res) => {
+            const client = protocol === 'https' ? https : http;
+            const req = client.request(options, (res) => {
                 let body = '';
                 res.on('data', (chunk) => body += chunk);
                 res.on('end', () => {
@@ -105,13 +113,13 @@ class AgentRuntime {
                         const parsed = JSON.parse(body);
                         resolve(parsed.response || "No response from Ollama.");
                     } catch (e) {
-                        reject(new Error(`Ollama parse error: ${e.message}. Is Ollama running?`));
+                        reject(new Error(`Ollama parse error: ${e.message}. Is Ollama running on ${host}:${port}?`));
                     }
                 });
             });
 
             req.on('error', (e) => {
-                reject(new Error(`Ollama connection failed: ${e.message}. Make sure Ollama is running on localhost:11434`));
+                reject(new Error(`Ollama connection failed: ${e.message}. Make sure Ollama is running on ${host}:${port}`));
             });
 
             req.write(data);
