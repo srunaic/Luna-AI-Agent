@@ -63,6 +63,18 @@
             cursor: row-resize !important;
         }
 
+        /* Drag overlay (prevents iframe capturing mouse/pointer during resize) */
+        .drag-overlay {
+            position: fixed;
+            inset: 0;
+            display: none;
+            z-index: 99999;
+            background: transparent;
+        }
+        .drag-overlay.show { display: block; }
+        .drag-overlay.col { cursor: col-resize; }
+        .drag-overlay.row { cursor: row-resize; }
+
         /* Sidebar (Explorer) */
         .sidebar {
             width: 250px;
@@ -430,6 +442,7 @@
 </head>
 <body>
     <div id="loading" class="loading">Loading Luna AI Agent...</div>
+    <div id="drag-overlay" class="drag-overlay"></div>
 
     <div class="app-container">
         <!-- Explorer (Left) -->

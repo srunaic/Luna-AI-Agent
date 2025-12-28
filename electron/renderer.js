@@ -89,6 +89,7 @@ function setupSplitters() {
     const sidebar = document.getElementById('sidebar');
     const right = document.getElementById('right-panel');
     const terminalPanel = document.getElementById('terminal-panel');
+    const dragOverlay = document.getElementById('drag-overlay');
 
     const splitterLeft = document.getElementById('splitter-left');
     const splitterRight = document.getElementById('splitter-right');
@@ -96,25 +97,40 @@ function setupSplitters() {
 
     const startDrag = (mode, startEvent, onMove) => {
         startEvent.preventDefault();
+
+        // Show overlay so pointer events keep flowing even over iframe
+        if (dragOverlay) {
+            dragOverlay.classList.add('show');
+            dragOverlay.classList.toggle('col', mode === 'col');
+            dragOverlay.classList.toggle('row', mode === 'row');
+        }
+
         document.body.classList.add('resizing');
         if (mode === 'row') document.body.classList.add('resizing-row');
 
-        const onMouseMove = (e) => onMove(e);
-        const onMouseUp = () => {
+        const onPointerMove = (e) => onMove(e);
+        const end = () => {
+            if (dragOverlay) {
+                dragOverlay.classList.remove('show', 'col', 'row');
+            }
             document.body.classList.remove('resizing');
             document.body.classList.remove('resizing-row');
-            window.removeEventListener('mousemove', onMouseMove);
-            window.removeEventListener('mouseup', onMouseUp);
+
+            window.removeEventListener('pointermove', onPointerMove);
+            window.removeEventListener('pointerup', end);
+            window.removeEventListener('pointercancel', end);
+
             persistLayout();
             relayoutEditors();
         };
 
-        window.addEventListener('mousemove', onMouseMove);
-        window.addEventListener('mouseup', onMouseUp);
+        window.addEventListener('pointermove', onPointerMove);
+        window.addEventListener('pointerup', end);
+        window.addEventListener('pointercancel', end);
     };
 
     if (splitterLeft && sidebar) {
-        splitterLeft.addEventListener('mousedown', (e) => {
+        splitterLeft.addEventListener('pointerdown', (e) => {
             const startX = e.clientX;
             const startW = sidebar.getBoundingClientRect().width;
             startDrag('col', e, (ev) => {
@@ -126,7 +142,7 @@ function setupSplitters() {
     }
 
     if (splitterRight && right) {
-        splitterRight.addEventListener('mousedown', (e) => {
+        splitterRight.addEventListener('pointerdown', (e) => {
             const startX = e.clientX;
             const startW = right.getBoundingClientRect().width;
             startDrag('col', e, (ev) => {
@@ -139,7 +155,7 @@ function setupSplitters() {
     }
 
     if (splitterBottom && terminalPanel) {
-        splitterBottom.addEventListener('mousedown', (e) => {
+        splitterBottom.addEventListener('pointerdown', (e) => {
             const startY = e.clientY;
             const startH = terminalPanel.getBoundingClientRect().height;
             startDrag('row', e, (ev) => {
