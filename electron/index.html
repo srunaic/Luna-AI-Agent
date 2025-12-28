@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -38,28 +39,36 @@
             position: relative;
             z-index: 10;
         }
+
         .splitter-vertical {
             width: 6px;
             cursor: col-resize;
         }
+
         .splitter-horizontal {
             height: 6px;
             cursor: row-resize;
         }
+
         .splitter::before {
             content: "";
             position: absolute;
             inset: 0;
             background: transparent;
         }
+
         .splitter:hover::before {
             background: rgba(0, 122, 204, 0.12);
         }
-        body.resizing, body.resizing * {
+
+        body.resizing,
+        body.resizing * {
             cursor: col-resize !important;
             user-select: none !important;
         }
-        body.resizing.resizing-row, body.resizing.resizing-row * {
+
+        body.resizing.resizing-row,
+        body.resizing.resizing-row * {
             cursor: row-resize !important;
         }
 
@@ -71,9 +80,18 @@
             z-index: 99999;
             background: transparent;
         }
-        .drag-overlay.show { display: block; }
-        .drag-overlay.col { cursor: col-resize; }
-        .drag-overlay.row { cursor: row-resize; }
+
+        .drag-overlay.show {
+            display: block;
+        }
+
+        .drag-overlay.col {
+            cursor: col-resize;
+        }
+
+        .drag-overlay.row {
+            cursor: row-resize;
+        }
 
         /* Sidebar (Explorer) */
         .sidebar {
@@ -108,27 +126,89 @@
             text-transform: uppercase;
         }
 
-        .sidebar-section-header:hover { color: #fff; }
-        .sidebar-section-header .icon { margin-right: 6px; font-size: 10px; transition: transform 0.2s; }
-        .sidebar-section-header.collapsed .icon { transform: rotate(-90deg); }
-        .sidebar-section-content { flex: 1; min-height: 0; }
-        .sidebar-section-content.hidden { display: none; }
+        .sidebar-section-header:hover {
+            color: #fff;
+        }
 
-        .package-manager { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
-        .pkg-input-group { display: flex; gap: 4px; }
-        .pkg-input { 
-            flex: 1; background: #3c3c3c; border: 1px solid #3e3e42; color: #ccc; 
-            padding: 4px 8px; font-size: 12px; border-radius: 4px; outline: none;
+        .sidebar-section-header .icon {
+            margin-right: 6px;
+            font-size: 10px;
+            transition: transform 0.2s;
         }
-        .pkg-list { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
-        .pkg-item { 
-            background: #2d2d30; padding: 8px; border-radius: 4px; border: 1px solid #3e3e42;
-            display: flex; justify-content: space-between; align-items: center;
+
+        .sidebar-section-header.collapsed .icon {
+            transform: rotate(-90deg);
         }
-        .pkg-info { display: flex; flex-direction: column; }
-        .pkg-name { font-size: 12px; font-weight: 600; color: #e1e1e1; }
-        .pkg-desc { font-size: 10px; color: #858585; }
-        .btn-sm { padding: 2px 8px; font-size: 11px; }
+
+        .sidebar-section-content {
+            flex: 1;
+            min-height: 0;
+        }
+
+        .sidebar-section-content.hidden {
+            display: none;
+        }
+
+        .package-manager {
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .pkg-input-group {
+            display: flex;
+            gap: 4px;
+        }
+
+        .pkg-input {
+            flex: 1;
+            background: #3c3c3c;
+            border: 1px solid #3e3e42;
+            color: #ccc;
+            padding: 4px 8px;
+            font-size: 12px;
+            border-radius: 4px;
+            outline: none;
+        }
+
+        .pkg-list {
+            margin-top: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .pkg-item {
+            background: #2d2d30;
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #3e3e42;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .pkg-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .pkg-name {
+            font-size: 12px;
+            font-weight: 600;
+            color: #e1e1e1;
+        }
+
+        .pkg-desc {
+            font-size: 10px;
+            color: #858585;
+        }
+
+        .btn-sm {
+            padding: 2px 8px;
+            font-size: 11px;
+        }
 
         .sidebar-header {
             padding: 12px 16px;
@@ -216,7 +296,8 @@
         }
 
         .file-tab {
-            display: none; /* 기본적으로는 숨김 */
+            display: none;
+            /* 기본적으로는 숨김 */
             align-items: center;
             gap: 8px;
             background-color: var(--main-bg);
@@ -255,7 +336,8 @@
         .editor-container {
             flex: 1;
             position: relative;
-            display: none; /* 파일이 열리기 전엔 숨김 */
+            display: none;
+            /* 파일이 열리기 전엔 숨김 */
         }
 
         #monaco-editor {
@@ -311,7 +393,8 @@
             border-bottom: 1px solid var(--border-color);
             display: flex;
             align-items: center;
-            justify-content: space-between; /* 양 끝으로 배치 */
+            justify-content: space-between;
+            /* 양 끝으로 배치 */
             gap: 10px;
         }
 
@@ -374,7 +457,8 @@
             justify-content: space-between;
         }
 
-        .status-bar .left, .status-bar .right {
+        .status-bar .left,
+        .status-bar .right {
             display: flex;
             align-items: center;
         }
@@ -403,13 +487,17 @@
         .modal-overlay {
             position: fixed;
             inset: 0;
-            background: rgba(0,0,0,0.55);
+            background: rgba(0, 0, 0, 0.55);
             display: none;
             align-items: center;
             justify-content: center;
             z-index: 9998;
         }
-        .modal-overlay.show { display: flex; }
+
+        .modal-overlay.show {
+            display: flex;
+        }
+
         .modal {
             width: 520px;
             max-width: 92vw;
@@ -417,8 +505,9 @@
             border: 1px solid var(--border-color);
             border-radius: 10px;
             overflow: hidden;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
         }
+
         .modal-header {
             display: flex;
             align-items: center;
@@ -426,28 +515,34 @@
             padding: 12px 14px;
             border-bottom: 1px solid var(--border-color);
         }
+
         .modal-header h3 {
             margin: 0;
             font-size: 13px;
             font-weight: 600;
         }
+
         .modal-body {
             padding: 14px;
             display: flex;
             flex-direction: column;
             gap: 14px;
         }
+
         .field-row {
             display: grid;
             grid-template-columns: 160px 1fr;
             gap: 10px;
             align-items: center;
         }
+
         .field-row label {
             font-size: 12px;
             color: #cfcfcf;
         }
-        .field-row input, .field-row select {
+
+        .field-row input,
+        .field-row select {
             background: #1f1f1f;
             color: #ffffff;
             border: 1px solid #3e3e42;
@@ -456,12 +551,14 @@
             font-size: 12px;
             outline: none;
         }
+
         .field-hint {
             grid-column: 2 / 3;
             font-size: 11px;
             color: #9a9a9a;
             margin-top: -6px;
         }
+
         .modal-footer {
             display: flex;
             justify-content: flex-end;
@@ -469,6 +566,7 @@
             padding: 12px 14px;
             border-top: 1px solid var(--border-color);
         }
+
         .btn {
             background: #2d2d30;
             border: 1px solid #3e3e42;
@@ -478,12 +576,14 @@
             font-size: 12px;
             cursor: pointer;
         }
+
         .btn.primary {
             background: var(--accent-color);
             border-color: var(--accent-color);
         }
     </style>
 </head>
+
 <body>
     <div id="loading" class="loading">Loading Luna AI Agent...</div>
     <div id="drag-overlay" class="drag-overlay"></div>
@@ -523,12 +623,15 @@
                                 <input id="pkg-url" class="pkg-input" placeholder="Enter ID to search..." />
                                 <button id="btn-refresh-market" class="btn btn-sm" title="Refresh Store">↻</button>
                             </div>
-                            <div id="pkg-status" style="font-size:10px; color:var(--accent-color); margin-top:2px;"></div>
-                            
-                            <div style="font-size: 10px; color: #969696; margin-top: 10px; font-weight: bold;">INSTALLED</div>
+                            <div id="pkg-status" style="font-size:10px; color:var(--accent-color); margin-top:2px;">
+                            </div>
+
+                            <div style="font-size: 10px; color: #969696; margin-top: 10px; font-weight: bold;">INSTALLED
+                            </div>
                             <div class="pkg-list" id="installed-pkg-list"></div>
 
-                            <div style="font-size: 10px; color: #969696; margin-top: 15px; font-weight: bold;">LUNA MARKET (Serverless)</div>
+                            <div style="font-size: 10px; color: #969696; margin-top: 15px; font-weight: bold;">LUNA
+                                MARKET (Serverless)</div>
                             <div class="pkg-list" id="market-pkg-list">
                                 <!-- Marketplace items will be loaded here -->
                             </div>
@@ -549,7 +652,7 @@
                     <span id="close-file" class="close-btn">×</span>
                 </div>
             </div>
-            
+
             <div id="editor-area" style="flex:1; min-height:0; position:relative; display:flex; flex-direction:column;">
                 <div id="editor-placeholder" class="editor-placeholder">
                     <img src="../assets/Luna.jpg" style="width: 64px; height: 64px; opacity: 0.2; margin-bottom: 20px;">
@@ -645,7 +748,8 @@
                 </div>
                 <div class="field-row">
                     <label></label>
-                    <button id="ollama-firewall-allow" class="btn" style="justify-self:start;">Allow in Windows Firewall</button>
+                    <button id="ollama-firewall-allow" class="btn" style="justify-self:start;">Allow in Windows
+                        Firewall</button>
                     <div class="field-hint">연결이 막힐 때(보안/방화벽) 11434 포트를 허용 규칙으로 추가합니다.</div>
                 </div>
 
@@ -661,10 +765,22 @@
                     <div class="field-hint">주의: 로컬 PC(userData/settings.json)에 저장됩니다.</div>
                 </div>
 
-                <div style="font-size:12px; font-weight:600; color:#fff; margin-top:12px; border-top: 1px solid var(--border-color); padding-top: 10px;">Luna's Soul (Personality)</div>
+                <div style="font-size:12px; font-weight:600; color:#fff; margin-top:8px;">Luna Cloud (Optional)</div>
+                <div class="field-row">
+                    <label for="luna-apiKey">Luna API Key</label>
+                    <input id="luna-apiKey" placeholder="luna-..." />
+                    <div class="field-hint">Luna 전용 클라우드 기능을 이용하시려면 입력해 주세요.</div>
+                </div>
+
+                <div
+                    style="font-size:12px; font-weight:600; color:#fff; margin-top:12px; border-top: 1px solid var(--border-color); padding-top: 10px;">
+                    Luna's Soul (Personality)</div>
                 <div style="display: flex; flex-direction: column; gap: 6px;">
-                    <label for="luna-system-instructions" style="font-size: 12px; color: #cfcfcf;">System Instructions</label>
-                    <textarea id="luna-system-instructions" style="background:#1f1f1f; color:#fff; border:1px solid #3e3e42; border-radius:6px; padding:8px; font-size:12px; outline:none; height:80px; resize:vertical; font-family: inherit;" placeholder="예: 너는 최고의 풀스택 개발자야. 모든 코드에는 한글 주석을 달아줘."></textarea>
+                    <label for="luna-system-instructions" style="font-size: 12px; color: #cfcfcf;">System
+                        Instructions</label>
+                    <textarea id="luna-system-instructions"
+                        style="background:#1f1f1f; color:#fff; border:1px solid #3e3e42; border-radius:6px; padding:8px; font-size:12px; outline:none; height:80px; resize:vertical; font-family: inherit;"
+                        placeholder="예: 너는 최고의 풀스택 개발자야. 모든 코드에는 한글 주석을 달아줘."></textarea>
                     <div class="field-hint">루나의 행동 방식과 말투를 결정합니다. 공백 시 기본 프로토콜이 적용됩니다.</div>
                 </div>
             </div>
@@ -684,4 +800,5 @@
     <script src="https://unpkg.com/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
     <script src="./renderer.js"></script>
 </body>
+
 </html>

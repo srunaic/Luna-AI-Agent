@@ -55,6 +55,9 @@ function defaultSettings() {
     openai: {
       baseUrl: 'https://api.openai.com',
       apiKey: ''
+    },
+    luna: {
+      apiKey: ''
     }
   };
 }

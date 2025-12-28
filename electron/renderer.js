@@ -695,6 +695,7 @@ async function openSettingsModal() {
     const temperatureEl = document.getElementById('ollama-temperature');
     const baseUrlEl = document.getElementById('openai-baseUrl');
     const apiKeyEl = document.getElementById('openai-apiKey');
+    const lunaApiKeyEl = document.getElementById('luna-apiKey');
     const systemInstructionsEl = document.getElementById('luna-system-instructions');
     const firewallBtn = document.getElementById('ollama-firewall-allow');
     const statusEl = document.getElementById('settings-status');
@@ -715,6 +716,7 @@ async function openSettingsModal() {
     if (temperatureEl) temperatureEl.value = String(settings?.ollama?.temperature ?? 0.2);
     if (baseUrlEl) baseUrlEl.value = settings?.openai?.baseUrl ?? 'https://api.openai.com';
     if (apiKeyEl) apiKeyEl.value = settings?.openai?.apiKey ?? '';
+    if (lunaApiKeyEl) lunaApiKeyEl.value = settings?.luna?.apiKey ?? '';
     if (systemInstructionsEl) systemInstructionsEl.value = settings?.systemInstructions ?? '';
     if (statusEl) statusEl.textContent = '';
 
@@ -746,6 +748,9 @@ async function openSettingsModal() {
             openai: {
                 baseUrl: (baseUrlEl?.value || 'https://api.openai.com').trim(),
                 apiKey: (apiKeyEl?.value || '').trim()
+            },
+            luna: {
+                apiKey: (lunaApiKeyEl?.value || '').trim()
             },
             systemInstructions: (systemInstructionsEl?.value || '').trim()
         };
