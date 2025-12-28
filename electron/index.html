@@ -305,6 +305,90 @@
         .loading.hide {
             display: none;
         }
+
+        /* Settings Modal */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.55);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 9998;
+        }
+        .modal-overlay.show { display: flex; }
+        .modal {
+            width: 520px;
+            max-width: 92vw;
+            background: var(--sidebar-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+        }
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 14px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .modal-header h3 {
+            margin: 0;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        .modal-body {
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+        .field-row {
+            display: grid;
+            grid-template-columns: 160px 1fr;
+            gap: 10px;
+            align-items: center;
+        }
+        .field-row label {
+            font-size: 12px;
+            color: #cfcfcf;
+        }
+        .field-row input, .field-row select {
+            background: #1f1f1f;
+            color: #ffffff;
+            border: 1px solid #3e3e42;
+            border-radius: 6px;
+            padding: 8px 10px;
+            font-size: 12px;
+            outline: none;
+        }
+        .field-hint {
+            grid-column: 2 / 3;
+            font-size: 11px;
+            color: #9a9a9a;
+            margin-top: -6px;
+        }
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            padding: 12px 14px;
+            border-top: 1px solid var(--border-color);
+        }
+        .btn {
+            background: #2d2d30;
+            border: 1px solid #3e3e42;
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .btn.primary {
+            background: var(--accent-color);
+            border-color: var(--accent-color);
+        }
     </style>
 </head>
 <body>
@@ -373,6 +457,48 @@
         <div class="right">
             <span id="file-encoding">UTF-8</span>
             <span id="file-language" style="margin-left: 15px;">Plain Text</span>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-overlay" class="modal-overlay">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+            <div class="modal-header">
+                <h3 id="settings-title">Settings • LLM Endpoints</h3>
+                <button id="settings-close-x" class="btn" style="padding:4px 10px;">×</button>
+            </div>
+            <div class="modal-body">
+                <div style="font-size:12px; color:#bdbdbd;">
+                    모델별 연결 체크 주소/포트를 설정합니다. 저장 즉시 연결 상태(초록불)가 갱신됩니다.
+                </div>
+
+                <div style="font-size:12px; font-weight:600; color:#fff; margin-top:4px;">Ollama</div>
+                <div class="field-row">
+                    <label for="ollama-host">Host</label>
+                    <input id="ollama-host" placeholder="localhost" />
+                    <div class="field-hint">예: localhost / 192.168.0.10 / my-ollama.domain</div>
+                </div>
+                <div class="field-row">
+                    <label for="ollama-port">Port</label>
+                    <input id="ollama-port" placeholder="11434" />
+                </div>
+
+                <div style="font-size:12px; font-weight:600; color:#fff; margin-top:8px;">OpenAI (GPT)</div>
+                <div class="field-row">
+                    <label for="openai-baseUrl">Base URL</label>
+                    <input id="openai-baseUrl" placeholder="https://api.openai.com" />
+                    <div class="field-hint">기본값: https://api.openai.com (프록시/게이트웨이 사용 시 변경)</div>
+                </div>
+                <div class="field-row">
+                    <label for="openai-apiKey">API Key</label>
+                    <input id="openai-apiKey" placeholder="sk-..." />
+                    <div class="field-hint">주의: 로컬 PC(userData/settings.json)에 저장됩니다.</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="settings-cancel" class="btn">Cancel</button>
+                <button id="settings-save" class="btn primary">Save</button>
+            </div>
         </div>
     </div>
 

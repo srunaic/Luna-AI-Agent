@@ -27,6 +27,8 @@ let llmHealthInterval = null;
 let lastLLMConnected = null;
 let activeModel = 'ollama';
 let updateCheckInterval = null;
+let settingsPath = null;
+let llmSettings = null;
 let globalEditorState = {
   openFiles: [],
   activeFile: null,
@@ -34,6 +36,50 @@ let globalEditorState = {
   selection: null,
   projectRoot: null
 };
+
+function defaultSettings() {
+  return {
+    ollama: {
+      protocol: 'http',
+      host: 'localhost',
+      port: 11434
+    },
+    openai: {
+      baseUrl: 'https://api.openai.com',
+      apiKey: ''
+    }
+  };
+}
+
+function loadSettings() {
+  try {
+    if (!settingsPath) {
+      settingsPath = path.join(app.getPath('userData'), 'settings.json');
+    }
+    if (fs.existsSync(settingsPath)) {
+      const raw = fs.readFileSync(settingsPath, 'utf8');
+      const parsed = JSON.parse(raw);
+      llmSettings = { ...defaultSettings(), ...(parsed || {}) };
+    } else {
+      llmSettings = defaultSettings();
+      fs.writeFileSync(settingsPath, JSON.stringify(llmSettings, null, 2), 'utf8');
+    }
+  } catch (e) {
+    console.error('Failed to load settings:', e);
+    llmSettings = defaultSettings();
+  }
+}
+
+function saveSettings(next) {
+  try {
+    if (!settingsPath) {
+      settingsPath = path.join(app.getPath('userData'), 'settings.json');
+    }
+    fs.writeFileSync(settingsPath, JSON.stringify(next, null, 2), 'utf8');
+  } catch (e) {
+    console.error('Failed to save settings:', e);
+  }
+}
 
 function createWindow() {
   // 관리자 권한이 아니면 경고 메시지를 띄우고 종료
@@ -67,6 +113,7 @@ function createWindow() {
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
+    loadSettings();
     try {
       setupPowerShell();
     } catch (e) {
@@ -102,10 +149,11 @@ function isOpenAIModel(model) {
 
 function checkOllamaOnce(timeoutMs = 700) {
   return new Promise((resolve) => {
+    const cfg = (llmSettings?.ollama || defaultSettings().ollama);
     const req = http.request(
       {
-        hostname: 'localhost',
-        port: 11434,
+        hostname: cfg.host || 'localhost',
+        port: Number(cfg.port || 11434),
         path: '/api/version',
         method: 'GET'
       },
@@ -127,7 +175,16 @@ function checkOllamaOnce(timeoutMs = 700) {
 }
 
 function checkOpenAIOnce(timeoutMs = 1200) {
+  const cfg = (llmSettings?.openai || defaultSettings().openai);
+  let baseUrl = cfg.baseUrl || 'https://api.openai.com';
+  try {
+    baseUrl = new URL(baseUrl).toString().replace(/\/+$/, '');
+  } catch (_) {
+    baseUrl = 'https://api.openai.com';
+  }
+
   const key =
+    cfg.apiKey ||
     process.env.LUNA_OPENAI_API_KEY ||
     process.env.OPENAI_API_KEY ||
     '';
@@ -141,10 +198,11 @@ function checkOpenAIOnce(timeoutMs = 1200) {
   }
 
   return new Promise((resolve) => {
+    const u = new URL(baseUrl);
     const req = https.request(
       {
-        hostname: 'api.openai.com',
-        port: 443,
+        hostname: u.hostname,
+        port: u.port ? Number(u.port) : 443,
         path: '/v1/models',
         method: 'GET',
         headers: {
@@ -370,6 +428,41 @@ ipcMain.on('set-model', async (_event, payload) => {
   const status = await checkLLMOnce();
   lastLLMConnected = !!status.connected;
   sendLLMConnectionStatus(status);
+});
+
+ipcMain.handle('get-settings', async () => {
+  if (!llmSettings) loadSettings();
+  return llmSettings;
+});
+
+ipcMain.handle('set-settings', async (_event, next) => {
+  if (!llmSettings) loadSettings();
+  const merged = {
+    ...defaultSettings(),
+    ...(llmSettings || {}),
+    ...(next || {})
+  };
+
+  merged.ollama = {
+    protocol: merged.ollama?.protocol === 'https' ? 'https' : 'http',
+    host: String(merged.ollama?.host || 'localhost'),
+    port: Number(merged.ollama?.port || 11434)
+  };
+  merged.openai = {
+    baseUrl: String(merged.openai?.baseUrl || 'https://api.openai.com'),
+    apiKey: String(merged.openai?.apiKey || '')
+  };
+
+  llmSettings = merged;
+  saveSettings(llmSettings);
+
+  // Refresh connection status immediately
+  lastLLMConnected = null;
+  const status = await checkLLMOnce();
+  lastLLMConnected = !!status.connected;
+  sendLLMConnectionStatus(status);
+
+  return llmSettings;
 });
 
 function setupMenu() {

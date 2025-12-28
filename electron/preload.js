@@ -33,7 +33,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
       'chat-window-closed',
       'save-file',
       'llm-connection',
-      'update-status'
+      'update-status',
+      'open-settings'
     ];
 
     if (validChannels.includes(channel)) {
@@ -64,4 +65,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Development helpers
   isDev: () => process.env.ELECTRON_IS_DEV === 'true'
+  ,
+
+  // Settings (LLM endpoints)
+  getSettings: () => ipcRenderer.invoke('get-settings'),
+  setSettings: (settings) => ipcRenderer.invoke('set-settings', settings)
 });

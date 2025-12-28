@@ -294,6 +294,11 @@ function setupIPCListeners() {
         document.getElementById('right-panel').style.display = 'flex';
     });
 
+    // Settings modal open
+    window.electronAPI.on('open-settings', async () => {
+        await openSettingsModal();
+    });
+
     // Listen for messages from the AI Panel Webview
     window.addEventListener('message', (event) => {
         const message = event.data;
@@ -407,6 +412,63 @@ function setupIPCListeners() {
             }, '*');
         }
     });
+}
+
+async function openSettingsModal() {
+    const overlay = document.getElementById('settings-overlay');
+    if (!overlay || !window.electronAPI?.getSettings) return;
+
+    const hostEl = document.getElementById('ollama-host');
+    const portEl = document.getElementById('ollama-port');
+    const baseUrlEl = document.getElementById('openai-baseUrl');
+    const apiKeyEl = document.getElementById('openai-apiKey');
+    const btnSave = document.getElementById('settings-save');
+    const btnCancel = document.getElementById('settings-cancel');
+    const btnCloseX = document.getElementById('settings-close-x');
+
+    const close = () => overlay.classList.remove('show');
+    const show = () => overlay.classList.add('show');
+
+    const settings = await window.electronAPI.getSettings();
+    if (hostEl) hostEl.value = settings?.ollama?.host ?? 'localhost';
+    if (portEl) portEl.value = String(settings?.ollama?.port ?? 11434);
+    if (baseUrlEl) baseUrlEl.value = settings?.openai?.baseUrl ?? 'https://api.openai.com';
+    if (apiKeyEl) apiKeyEl.value = settings?.openai?.apiKey ?? '';
+
+    const onCancel = () => close();
+    const onCloseX = () => close();
+    const onOverlayClick = (e) => { if (e.target === overlay) close(); };
+
+    const onSave = async () => {
+        const next = {
+            ollama: {
+                host: (hostEl?.value || 'localhost').trim(),
+                port: Number((portEl?.value || '11434').trim())
+            },
+            openai: {
+                baseUrl: (baseUrlEl?.value || 'https://api.openai.com').trim(),
+                apiKey: (apiKeyEl?.value || '').trim()
+            }
+        };
+        await window.electronAPI.setSettings(next);
+        close();
+    };
+
+    // (Re)bind handlers safely
+    if (btnCancel) btnCancel.onclick = onCancel;
+    if (btnCloseX) btnCloseX.onclick = onCloseX;
+    if (btnSave) btnSave.onclick = onSave;
+    overlay.onclick = onOverlayClick;
+
+    // ESC closes
+    window.addEventListener('keydown', function escHandler(ev) {
+        if (ev.key === 'Escape') {
+            close();
+            window.removeEventListener('keydown', escHandler);
+        }
+    });
+
+    show();
 }
 
 async function openFile(filePath) {
