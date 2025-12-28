@@ -3,6 +3,7 @@ let editor = null;
 let currentFile = null;
 let currentFolder = null;
 let terminal = null;
+let terminalFitAddon = null;
 let navigationHistory = [];
 let historyIndex = -1;
 let activeTaskId = null;
@@ -31,6 +32,7 @@ function initializeUI() {
         setupNavigation();
         setupIPCListeners();
         initializeAIPanel();
+        setupSplitters();
         setupTerminal();
     } catch (e) {
         console.error('UI Setup error:', e);
@@ -38,6 +40,119 @@ function initializeUI() {
 
     // 3. 에디터 엔진(가장 무거운 작업)을 백그라운드에서 로드합니다.
     loadMonaco();
+}
+
+function applySavedLayout() {
+    try {
+        const sidebar = document.getElementById('sidebar');
+        const right = document.getElementById('right-panel');
+        const terminalPanel = document.getElementById('terminal-panel');
+
+        const sw = Number(localStorage.getItem('luna.sidebarWidth') || '');
+        if (sidebar && Number.isFinite(sw) && sw > 0) sidebar.style.width = `${sw}px`;
+
+        const rw = Number(localStorage.getItem('luna.rightPanelWidth') || '');
+        if (right && Number.isFinite(rw) && rw > 0) right.style.width = `${rw}px`;
+
+        const th = Number(localStorage.getItem('luna.terminalHeight') || '');
+        if (terminalPanel && Number.isFinite(th) && th > 0) terminalPanel.style.height = `${th}px`;
+    } catch (_) {}
+}
+
+function persistLayout() {
+    try {
+        const sidebar = document.getElementById('sidebar');
+        const right = document.getElementById('right-panel');
+        const terminalPanel = document.getElementById('terminal-panel');
+        if (sidebar) localStorage.setItem('luna.sidebarWidth', String(sidebar.getBoundingClientRect().width));
+        if (right) localStorage.setItem('luna.rightPanelWidth', String(right.getBoundingClientRect().width));
+        if (terminalPanel) localStorage.setItem('luna.terminalHeight', String(terminalPanel.getBoundingClientRect().height));
+    } catch (_) {}
+}
+
+function relayoutEditors() {
+    try {
+        if (editor) editor.layout();
+    } catch (_) {}
+    try {
+        if (terminalFitAddon) terminalFitAddon.fit();
+    } catch (_) {}
+}
+
+function clamp(n, min, max) {
+    return Math.max(min, Math.min(max, n));
+}
+
+function setupSplitters() {
+    applySavedLayout();
+
+    const sidebar = document.getElementById('sidebar');
+    const right = document.getElementById('right-panel');
+    const terminalPanel = document.getElementById('terminal-panel');
+
+    const splitterLeft = document.getElementById('splitter-left');
+    const splitterRight = document.getElementById('splitter-right');
+    const splitterBottom = document.getElementById('splitter-bottom');
+
+    const startDrag = (mode, startEvent, onMove) => {
+        startEvent.preventDefault();
+        document.body.classList.add('resizing');
+        if (mode === 'row') document.body.classList.add('resizing-row');
+
+        const onMouseMove = (e) => onMove(e);
+        const onMouseUp = () => {
+            document.body.classList.remove('resizing');
+            document.body.classList.remove('resizing-row');
+            window.removeEventListener('mousemove', onMouseMove);
+            window.removeEventListener('mouseup', onMouseUp);
+            persistLayout();
+            relayoutEditors();
+        };
+
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup', onMouseUp);
+    };
+
+    if (splitterLeft && sidebar) {
+        splitterLeft.addEventListener('mousedown', (e) => {
+            const startX = e.clientX;
+            const startW = sidebar.getBoundingClientRect().width;
+            startDrag('col', e, (ev) => {
+                const next = clamp(startW + (ev.clientX - startX), 180, 600);
+                sidebar.style.width = `${next}px`;
+                relayoutEditors();
+            });
+        });
+    }
+
+    if (splitterRight && right) {
+        splitterRight.addEventListener('mousedown', (e) => {
+            const startX = e.clientX;
+            const startW = right.getBoundingClientRect().width;
+            startDrag('col', e, (ev) => {
+                // Dragging splitter: moving right decreases right panel width, moving left increases.
+                const next = clamp(startW - (ev.clientX - startX), 280, 800);
+                right.style.width = `${next}px`;
+                relayoutEditors();
+            });
+        });
+    }
+
+    if (splitterBottom && terminalPanel) {
+        splitterBottom.addEventListener('mousedown', (e) => {
+            const startY = e.clientY;
+            const startH = terminalPanel.getBoundingClientRect().height;
+            startDrag('row', e, (ev) => {
+                // Dragging splitter down decreases terminal height, up increases.
+                const next = clamp(startH - (ev.clientY - startY), 100, 600);
+                terminalPanel.style.height = `${next}px`;
+                relayoutEditors();
+            });
+        });
+    }
+
+    // Relayout on window resize too
+    window.addEventListener('resize', () => relayoutEditors());
 }
 
 // PowerShell Terminal Setup (xterm.js)
@@ -100,12 +215,12 @@ function setupTerminal() {
         });
 
         if (typeof FitAddon !== 'undefined') {
-            const fitAddon = new FitAddon.FitAddon();
-            terminal.loadAddon(fitAddon);
+            terminalFitAddon = new FitAddon.FitAddon();
+            terminal.loadAddon(terminalFitAddon);
             terminal.open(container);
-            fitAddon.fit();
+            terminalFitAddon.fit();
             
-            window.addEventListener('resize', () => fitAddon.fit());
+            window.addEventListener('resize', () => terminalFitAddon.fit());
         } else {
             terminal.open(container);
         }
