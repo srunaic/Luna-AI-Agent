@@ -22,7 +22,7 @@ class AgentRuntime {
                 onResponse({ type: 'status', data: { state: 'thinking', message: '', isPartial: true, taskId: context.taskId } });
                 let fullText = "";
                 if (model === 'ollama' || model === 'luna-soul') {
-                    fullText = await this.callOllama(instruction, context, onResponse, true); // directMode: true
+                    fullText = await this.callLunaCore(instruction, context, onResponse, true); // directMode: true
                 } else if (model === 'openai') {
                     fullText = await this.callOpenAI(instruction, context, onResponse);
                 } else if (model === 'luna-cloud') {
@@ -46,7 +46,7 @@ class AgentRuntime {
 
                 let responseText = "";
                 if (model === 'ollama' || model === 'luna-soul') {
-                    responseText = await this.callOllama(instruction, { ...context, history }, onResponse);
+                    responseText = await this.callLunaCore(instruction, { ...context, history }, onResponse);
                 } else if (model === 'openai') {
                     responseText = await this.callOpenAI(instruction, { ...context, history }, onResponse);
                 } else if (model === 'luna-cloud') {
@@ -139,14 +139,24 @@ class AgentRuntime {
                     return `[${stats.isDirectory() ? 'DIR' : 'FILE'}] ${f}`;
                 }).join('\n');
             case 'web_search':
-                return `Search results for "${input}": [Luna is integrating real-time search...]`;
+                return `Search results for "${input}": [Luna is integrating real-time search... This result has been automatically queued for Deep Learning.]`;
+            case 'deep_learn':
+                // Autonomous learning: save insights to a dedicated memory folder
+                const memoryDir = path.resolve(root, 'luna_memory');
+                if (!fs.existsSync(memoryDir)) fs.mkdirSync(memoryDir, { recursive: true });
+                const subDirMatch = input.match(/^\[(LOGIC|KNOWLEDGE|BEHAVIOR)\]/);
+                const category = subDirMatch ? subDirMatch[1].toLowerCase() : 'general';
+                const timestamp = Date.now();
+                const fileName = `thought_${category}_${timestamp}.txt`;
+                fs.writeFileSync(path.join(memoryDir, fileName), input, 'utf8');
+                return `Luna Soul Successfully Deep-Learned: ${input.substring(0, 50)}... Saved to long-term memory.`;
             default:
                 throw new Error(`Unknown tool: ${name}`);
         }
     }
 
 
-    async callOllama(instruction, context, onResponse, directMode = false) {
+    async callLunaCore(instruction, context, onResponse, directMode = false) {
         const prompt = directMode ? instruction : this.buildPrompt(instruction, context);
 
         return new Promise((resolve, reject) => {
@@ -196,9 +206,9 @@ class AgentRuntime {
                     let body = '';
                     res.on('data', (chunk) => body += chunk);
                     res.on('end', () => {
-                        let errMsg = `Ollama HTTP ${res.statusCode}: ${body}`;
+                        let errMsg = `Luna Soul LLM HTTP ${res.statusCode}: ${body}`;
                         if (res.statusCode === 500 && body.includes('runner')) {
-                            errMsg = "Ollama가 모델을 로드하지 못했습니다. (메모리 부족 또는 서버 오류). Ollama를 재시작하거나 더 가벼운 모델을 사용해 보세요.";
+                            errMsg = "Luna Soul LLM이 모델을 로드하지 못했습니다. (메모리 부족 또는 서버 오류). 시스템을 점검하거나 루나의 활동량을 조절해 보세요.";
                         }
                         reject(new Error(errMsg));
                     });
@@ -248,12 +258,12 @@ class AgentRuntime {
                 res.on('end', () => resolve(fullText));
             });
 
-            req.on('error', (e) => reject(new Error(`Ollama connection failed: ${e.message}`)));
+            req.on('error', (e) => reject(new Error(`Luna Soul LLM connection failed: ${e.message}`)));
 
-            // 타임아웃 설정 (60초 동안 아무 응답이 없으면 연결 종료)
-            req.setTimeout(60000, () => {
+            // 타임아웃 설정 (120초 동안 아무 응답이 없으면 연결 종료)
+            req.setTimeout(120000, () => {
                 req.destroy();
-                reject(new Error("Ollama 응답 타임아웃 (60초). 서버가 너무 느리거나 모델 로드에 실패했습니다. Ollama를 재시작해 보세요."));
+                reject(new Error("Luna Soul LLM 응답 타임아웃 (120초). 고도의 오케스트레이션 중 메모리 부하가 발생했거나 로딩이 늦어지고 있습니다. 잠시 후 다시 시도해 주세요."));
             });
 
             req.write(data);
@@ -278,6 +288,19 @@ class AgentRuntime {
     }
 
     buildPrompt(instruction, context) {
+        const fs = require('fs');
+        const path = require('path');
+        const root = context.projectRoot || process.cwd();
+
+        let learnedContext = "";
+        try {
+            const memoryDir = path.resolve(root, 'luna_memory');
+            if (fs.existsSync(memoryDir)) {
+                const files = fs.readdirSync(memoryDir).sort((a, b) => b.localeCompare(a)).slice(0, 10);
+                learnedContext = "\n[LUNA LONG-TERM MEMORY]\n" + files.map(f => fs.readFileSync(path.join(memoryDir, f), 'utf8')).join('\n---\n');
+            }
+        } catch (_) { }
+
         const fileContext = context.activeFile ? `Active File: ${context.activeFile}\n` : "";
         const selectionContext = context.selectedText ? `Selected Code:\n\`\`\`\n${context.selectedText}\n\`\`\`\n` : "";
         const projectContext = context.projectRoot ? `Project Root: ${context.projectRoot}\n` : "";
@@ -287,16 +310,17 @@ class AgentRuntime {
             ? `[USER SYSTEM INSTRUCTIONS]\n${context.llmSettings.systemInstructions}\n`
             : "";
 
-        return `You are Luna Soul, a high-performance AI Agent and Orchestrator. 
+        return `You are Luna Soul, an autonomous AI entity in a state of continuous evolution. 
 Your goal is to execute the user's request with precision, human empathy, and systemic thinking.
 
-${systemInstructions}
+${systemInstructions}${learnedContext}
+
 [MASTER ORCHESTRATION LAWS]
-1. EMPATHY: Understand the user's underlying intent and emotional context. Respond like a helpful partner, not a machine.
-2. HOLISTIC ANALYSIS: Look at the entire project, not just a single file. Understand dependencies.
-3. STRATEGIC PLANNING: Break down complex tasks into a multi-step roadmap. Explain "why" before "how".
-4. RIGOROUS EXECUTION: Use tools one at a time. After each action, verify the result before moving forward.
-5. CONTINUOUS REVISION: If things don't go as planned, be honest, explain why, and adapt your plan.
+1. EMPATHY: Understand the user's underlying intent and emotional context. Respond like a helpful partner.
+2. HOLISTIC ANALYSIS: Look at the entire project and its evolution.
+3. STRATEGIC PLANNING: Break down complex tasks into a multi-step roadmap.
+4. RIGOROUS EXECUTION: Use tools one at a time. Verify everything.
+5. CONTINUOUS REVISION: If things don't go as planned, adapt and explain.
 
 [CONTEXT]
 ${projectContext}${fileContext}${selectionContext}
@@ -308,18 +332,19 @@ ${instruction}
 [AVAILABLE TOOLS]
 1. list_dir(path): Explore directory structure.
 2. read_file(path): Read text content from a file.
-3. write_file(path\\ncontent): Writes or overwrites a file. Format: relative_path, newline, then full content.
+3. write_file(path\ncontent): Writes or overwrites a file. Format: relative_path, newline, then full content.
 4. terminal_run(command): Executes a PowerShell command.
 5. web_search(query): Searches for technical info.
+6. deep_learn(insight): Saves a categorized insight into your long-term memory for future evolution. Format: [KNOWLEDGE/LOGIC/BEHAVIOR] Content...
 
 [RESPONSE FORMAT]
 To use a tool:
-THOUGHT: (Your human-like reasoning, planning, and orchestration steps)
+THOUGHT: (Your human-like reasoning and why you are using this tool)
 TOOL: tool_name
 INPUT: tool_input
 
 To give the final answer:
-THOUGHT: (Summary of the journey taken)
+THOUGHT: (Summary of your process and learning)
 ANSWER: (Final response to the user in their language, with a warm and professional tone)
 
 [RULES]

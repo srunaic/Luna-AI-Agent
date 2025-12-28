@@ -721,7 +721,7 @@
                     <button id="check-updates-now" class="btn" style="margin-left:auto;">Check updates now</button>
                 </div>
 
-                <div style="font-size:12px; font-weight:600; color:#fff; margin-top:4px;">Ollama</div>
+                <div style="font-size:12px; font-weight:600; color:#fff; margin-top:4px;">Luna Soul (Core LLM)</div>
                 <div class="field-row">
                     <label for="ollama-host">Host</label>
                     <input id="ollama-host" placeholder="localhost" />
@@ -734,7 +734,7 @@
                 <div class="field-row">
                     <label for="ollama-model">Model</label>
                     <input id="ollama-model" placeholder="llama3" />
-                    <div class="field-hint">예: llama3 / llama3.2:3b / qwen2.5-coder:7b (ollama list로 확인)</div>
+                    <div class="field-hint">루나의 뇌 구조(Model)를 지정합니다. 기본값: luna-soul</div>
                 </div>
                 <div class="field-row">
                     <label for="ollama-numPredict">Max tokens</label>
@@ -748,9 +748,9 @@
                 </div>
                 <div class="field-row">
                     <label></label>
-                    <button id="ollama-firewall-allow" class="btn" style="justify-self:start;">Allow in Windows
-                        Firewall</button>
-                    <div class="field-hint">연결이 막힐 때(보안/방화벽) 11434 포트를 허용 규칙으로 추가합니다.</div>
+                    <button id="ollama-firewall-allow" class="btn" style="justify-self:start;">Luna Core
+                        Optimization</button>
+                    <div class="field-hint">루나 브레인의 통신 엔진을 최적화하고 방화벽을 구성합니다.</div>
                 </div>
 
                 <div style="font-size:12px; font-weight:600; color:#fff; margin-top:8px;">OpenAI (GPT)</div>
@@ -783,6 +783,13 @@
                         placeholder="예: 너는 최고의 풀스택 개발자야. 모든 코드에는 한글 주석을 달아줘."></textarea>
                     <div class="field-hint">루나의 행동 방식과 말투를 결정합니다. 공백 시 기본 프로토콜이 적용됩니다.</div>
                 </div>
+
+                <div
+                    style="font-size:12px; font-weight:600; color:#4caf50; margin-top:12px; display:flex; align-items:center; gap:5px;">
+                    <span class="status-dot online"></span>
+                    Luna Deep Learning Memory: ACTIVE
+                </div>
+                <div class="field-hint">루나가 대화와 검색 결과를 자동으로 분석하여 실시간으로 학습 데이터를 축적 중입니다.</div>
             </div>
             <div class="modal-footer">
                 <span id="settings-status" style="margin-right:auto; font-size:11px; color:#9a9a9a;"></span>

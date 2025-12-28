@@ -164,11 +164,9 @@ function isOpenAIModel(model) {
   return typeof model === 'string' && model.toLowerCase().startsWith('gpt');
 }
 
-function checkOllamaOnce(timeoutMs = 700) {
+function checkLunaCoreOnce(timeoutMs = 700) {
   return new Promise((resolve) => {
     const cfg = (llmSettings?.ollama || defaultSettings().ollama);
-    // Windows에서 localhost가 IPv6(::1)로 먼저 해석되면 Ollama가 127.0.0.1만 리슨할 때 연결이 실패할 수 있어
-    // localhost는 IPv4로 강제합니다. (브라우저는 종종 fallback 하지만 Node는 실패할 수 있음)
     const host = (cfg.host || 'localhost').trim();
     const hostname = host.toLowerCase() === 'localhost' ? '127.0.0.1' : host;
     const req = http.request(
@@ -266,7 +264,7 @@ function checkOpenAIOnce(timeoutMs = 1200) {
 
 async function checkLLMOnce() {
   if (activeModel === 'ollama' || activeModel === 'luna-soul') {
-    const connected = await checkOllamaOnce();
+    const connected = await checkLunaCoreOnce();
     const cfg = (llmSettings?.ollama || defaultSettings().ollama);
     const host = (cfg.host || 'localhost').trim();
     const port = Number(cfg.port || 11434);
@@ -274,7 +272,7 @@ async function checkLLMOnce() {
       provider: 'ollama',
       connected,
       model: activeModel,
-      message: connected ? `Ollama connected (${activeModel})` : `${activeModel} not reachable (localhost:${port})`
+      message: connected ? `Luna LLM connected (${activeModel})` : `Luna LLM not reachable (localhost:${port})`
     };
   }
 
