@@ -14,65 +14,95 @@ class AgentRuntime {
         const { instruction, context } = request;
         const model = context.model || 'ollama';
 
-        console.log(`Agent Runtime processing with model: ${model}`, request);
-
-        onResponse({
-            type: 'status',
-            data: { state: 'thinking', message: `Consulting ${model}...` }
-        });
+        let turn = 0;
+        let maxTurns = 5;
+        let history = [];
 
         try {
-            let responseText = "";
-            
-            if (model === 'ollama') {
-                responseText = await this.callOllama(instruction, context, onResponse);
-            } else if (model.startsWith('gpt')) {
-                responseText = await this.callOpenAI(instruction, context, onResponse);
-            } else {
-                throw new Error(`Unsupported model: ${model}`);
-            }
-
-            // Phase 1: Logic to detect if the response contains code edits
-            if (responseText.includes('```')) {
+            while (turn < maxTurns) {
+                turn++;
                 onResponse({
                     type: 'status',
-                    data: { state: 'editing', message: 'Applying suggested changes...' }
+                    data: { state: 'thinking', message: `Orchestrating (Turn ${turn})...`, taskId: context.taskId }
                 });
-                
-                // Simplified edit detection for Phase 1
-                const codeMatch = responseText.match(/```(?:\w+)?\n([\s\S]*?)```/);
-                if (codeMatch && codeMatch[1]) {
+
+                let responseText = "";
+                if (model === 'ollama') {
+                    responseText = await this.callOllama(instruction, { ...context, history }, onResponse);
+                } else {
+                    responseText = await this.callOpenAI(instruction, { ...context, history }, onResponse);
+                }
+
+                // Parse Thought/Tool/Answer
+                const toolMatch = responseText.match(/TOOL:\s*(\w+)\nINPUT:\s*([\s\S]+)/i);
+                const answerMatch = responseText.match(/ANSWER:\s*([\s\S]+)/i);
+
+                if (toolMatch) {
+                    const toolName = toolMatch[1].trim();
+                    const toolInput = toolMatch[2].trim();
+
+                    onResponse({
+                        type: 'status',
+                        data: { state: 'executing', message: `Using tool: ${toolName}...`, taskId: context.taskId }
+                    });
+
+                    // Execute tool
+                    let toolResult = "";
+                    try {
+                        toolResult = await this.executeTool(toolName, toolInput, context);
+                    } catch (e) {
+                        toolResult = `Error: ${e.message}`;
+                    }
+
                     onResponse({
                         type: 'action',
-                        data: {
-                            tool: 'apply_diff',
-                            filePath: context.activeFile,
-                            newText: codeMatch[1]
+                        data: { 
+                            tool: toolName, 
+                            input: toolInput, 
+                            result: toolResult,
+                            taskId: context.taskId 
                         }
                     });
+
+                    history.push({ role: 'assistant', content: responseText });
+                    history.push({ role: 'system', content: `TOOL_RESULT: ${toolResult}` });
+                    
+                    // Continue loop
+                    continue;
+                } 
+
+                if (answerMatch || responseText) {
+                    const finalAnswer = answerMatch ? answerMatch[1].trim() : responseText;
+                    onResponse({
+                        type: 'done',
+                        data: { success: true, message: finalAnswer, taskId: context.taskId }
+                    });
+                    break;
                 }
             }
-
-            onResponse({
-                type: 'done',
-                data: { 
-                    success: true, 
-                    message: responseText 
-                }
-            });
-
         } catch (error) {
-            console.error('Agent Runtime Error:', error);
-            onResponse({
-                type: 'status',
-                data: { state: 'failed', message: `Error: ${error.message}` }
-            });
             onResponse({
                 type: 'done',
-                data: { success: false, message: `Task failed: ${error.message}` }
+                data: { success: false, message: `Orchestration Error: ${error.message}`, taskId: context.taskId }
             });
         } finally {
             this.isRunning = false;
+        }
+    }
+
+    async executeTool(name, input, context) {
+        switch (name) {
+            case 'terminal_run':
+                const { execSync } = require('child_process');
+                return execSync(input, { encoding: 'utf8', cwd: context.projectRoot || process.cwd() });
+            case 'read_file':
+                const fs = require('fs');
+                return fs.readFileSync(input, 'utf8');
+            case 'web_search':
+                // Placeholder for real web search
+                return `Search results for "${input}": [Luna is integrating real-time search...]`;
+            default:
+                throw new Error(`Unknown tool: ${name}`);
         }
     }
 
@@ -144,7 +174,8 @@ class AgentRuntime {
                                     data: { 
                                         state: 'thinking', 
                                         message: fullText,
-                                        isPartial: true
+                                        isPartial: true,
+                                        taskId: context.taskId
                                     }
                                 });
                             }
@@ -182,16 +213,38 @@ class AgentRuntime {
     buildPrompt(instruction, context) {
         const fileContext = context.activeFile ? `Active File: ${context.activeFile}\n` : "";
         const selectionContext = context.selectedText ? `Selected Code:\n\`\`\`\n${context.selectedText}\n\`\`\`\n` : "";
+        const projectContext = context.projectRoot ? `Project Root: ${context.projectRoot}\n` : "";
+        const historyText = context.history?.length > 0 ? `Conversation History:\n${context.history.map(h => `${h.role}: ${h.content}`).join('\n')}\n` : "";
         
-        return `You are Luna, an AI coding assistant.
+        return `You are Luna, an advanced AI Orchestrator. 
+Your goal is to solve the user's request by thinking step-by-step and using tools if necessary.
+
 Context:
-${fileContext}${selectionContext}
+${projectContext}${fileContext}${selectionContext}
+
+${historyText}
 User Instruction: ${instruction}
 
+[Available Tools]
+1. web_search(query): Search the web for latest info, documentation, or code samples.
+2. terminal_run(command): Run a PowerShell command.
+3. read_file(path): Read file content.
+4. write_file(path, content): Write or update a file.
+
+[Output Format]
+If you need a tool:
+THOUGHT: (Your reasoning)
+TOOL: tool_name
+INPUT: tool_input
+
+If you have the final answer:
+THOUGHT: (Final reasoning)
+ANSWER: (Your final response to the user)
+
 Rules:
-- Be concise and actionable.
-- If you suggest code changes, wrap ONLY the changed code in triple backticks.
-- Do not include hidden chain-of-thought.`;
+- Be extremely fast and concise.
+- Use tools only when you lack information or need to act.
+- For code, always provide a complete snippet.`;
     }
 
     delay(ms) {
