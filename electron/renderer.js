@@ -535,8 +535,8 @@ function setupIPCListeners() {
     const popoutBtn = document.getElementById('popout-chat');
     if (popoutBtn) {
         popoutBtn.onclick = () => {
-            window.electronAPI.send('popout-chat');
-            document.getElementById('right-panel').style.display = 'none'; // 메인 창의 패널은 숨김
+            // Open a new independent chat window (keep the main chat panel visible)
+            window.electronAPI.send('new-chat-window');
         };
     }
 
@@ -674,7 +674,8 @@ function setupIPCListeners() {
             if (overlay && overlay.classList.contains('show') && statusEl) {
                 const checkedAt = payload?.checkedAt ? ` (last check: ${payload.checkedAt})` : '';
                 const extra = payload?.availableVersion ? ` (available: v${payload.availableVersion})` : '';
-                statusEl.textContent = `Update status: ${payload?.state || 'idle'}${extra}${checkedAt}`;
+                const msg = payload?.message ? ` - ${payload.message}` : '';
+                statusEl.textContent = `Update status: ${payload?.state || 'idle'}${extra}${checkedAt}${msg}`;
             }
         } catch (_) {}
     });
@@ -854,7 +855,7 @@ function updateNavButtons() {
 
 function initializeAIPanel() {
     const iframe = document.getElementById('ai-panel-iframe');
-    if (iframe) iframe.src = '../webview-ui/dist/index.html';
+    if (iframe) iframe.src = '../webview-ui/dist/index.html?session=main';
 }
 
 window.addEventListener('DOMContentLoaded', initializeUI);

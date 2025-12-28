@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ChatInput } from './components/ChatInput';
 import { PlanView } from './components/PlanView';
+import { ChatHistory, ChatMessage } from './components/ChatHistory';
 import { ActionLog } from './components/ActionLog';
 import { StatusBar } from './components/StatusBar';
 import { WebviewBridge } from './types/bridge';
@@ -10,6 +11,7 @@ import './App.css';
 interface AgentStore {
   currentTaskId: string | null;
   plan: PlanStep[];
+  chatHistory: ChatMessage[];
   actionLogs: ActionLogEntry[];
   status: AgentState;
   editorContext: EditorContext | null;
@@ -40,9 +42,21 @@ interface ActionLogEntry {
 }
 
 function App() {
+  const sessionId = (() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('session') || 'main';
+    } catch (_) {
+      return 'main';
+    }
+  })();
+
+  const chatStorageKey = `luna.chatHistory.${sessionId}`;
+
   const [store, setStore] = useState<AgentStore>({
     currentTaskId: null,
     plan: [],
+    chatHistory: [],
     actionLogs: [],
     status: 'idle',
     editorContext: null,
@@ -54,6 +68,17 @@ function App() {
   const [bridge] = useState(() => new WebviewBridge());
 
   useEffect(() => {
+    // Load persisted chat history (per session)
+    try {
+      const raw = localStorage.getItem(chatStorageKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          setStore(prev => ({ ...prev, chatHistory: parsed }));
+        }
+      }
+    } catch (_) {}
+
     // Load initial editor context
     bridge.getEditorContext().then(context => {
       setStore(prev => ({ ...prev, editorContext: context }));
@@ -99,7 +124,16 @@ function App() {
           setStore(prev => ({
             ...prev,
             currentTaskId: null,
-            status: 'idle'
+            status: 'idle',
+            chatHistory: [
+              ...prev.chatHistory,
+              {
+                id: `assistant_${Date.now()}`,
+                role: 'assistant',
+                content: String(message.data?.message || ''),
+                ts: Date.now()
+              }
+            ]
           }));
           break;
 
@@ -140,20 +174,41 @@ function App() {
     return cleanup;
   }, []);
 
+  useEffect(() => {
+    // Persist chat history
+    try {
+      localStorage.setItem(chatStorageKey, JSON.stringify(store.chatHistory));
+    } catch (_) {}
+  }, [store.chatHistory]);
+
   const handleModelChange = (model: string) => {
     bridge.setModel(model);
   };
 
   const handleExecuteTask = async (instruction: string, model: string) => {
     try {
-      setStore(prev => ({ ...prev, status: 'thinking' }));
+      setStore(prev => ({
+        ...prev,
+        status: 'thinking',
+        chatHistory: [
+          ...prev.chatHistory,
+          { id: `user_${Date.now()}`, role: 'user', content: instruction, ts: Date.now() }
+        ]
+      }));
       await bridge.executeTask(instruction, {
         ...store.editorContext,
         model: model
       });
     } catch (error) {
       console.error('Task execution failed:', error);
-      setStore(prev => ({ ...prev, status: 'failed' }));
+      setStore(prev => ({
+        ...prev,
+        status: 'idle',
+        chatHistory: [
+          ...prev.chatHistory,
+          { id: `system_${Date.now()}`, role: 'system', content: `Error: ${error instanceof Error ? error.message : String(error)}`, ts: Date.now() }
+        ]
+      }));
     }
   };
 
@@ -172,6 +227,7 @@ function App() {
     <div className="app">
       <div className="app-content">
         <div className="chat-messages">
+          <ChatHistory messages={store.chatHistory} />
           <PlanView steps={store.plan} />
           <ActionLog entries={store.actionLogs} />
         </div>
@@ -186,7 +242,7 @@ function App() {
           <ChatInput
             onExecute={handleExecuteTask}
             onCancel={handleCancelTask}
-            isExecuting={store.status !== 'idle'}
+            isExecuting={['thinking', 'planning', 'executing', 'editing', 'running'].includes(store.status)}
             editorContext={store.editorContext}
             onModelChange={handleModelChange}
           />

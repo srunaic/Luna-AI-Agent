@@ -44,7 +44,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Generic send
   send: (channel, data) => {
-    const validChannels = ['popout-chat', 'update-editor-state', 'terminal-input', 'set-model'];
+    const validChannels = ['popout-chat', 'new-chat-window', 'update-editor-state', 'terminal-input', 'set-model'];
     if (validChannels.includes(channel)) {
       ipcRenderer.send(channel, data);
     }
@@ -76,5 +76,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // App / Update info
   getAppInfo: () => ipcRenderer.invoke('get-app-info'),
-  checkUpdatesNow: () => ipcRenderer.invoke('check-updates-now')
+  checkUpdatesNow: () => ipcRenderer.invoke('check-updates-now'),
+
+  // Editor context for chat windows
+  getEditorState: () => ipcRenderer.invoke('get-editor-state')
 });

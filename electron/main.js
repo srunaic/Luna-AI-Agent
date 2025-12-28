@@ -20,7 +20,7 @@ function isAdmin() {
 }
 
 let mainWindow;
-let chatWindow; // 분리된 채팅 창을 위한 변수
+let chatWindows = []; // 분리된 채팅 창들
 let ptyProcess;
 const agentRuntime = new AgentRuntime();
 let llmHealthInterval = null;
@@ -130,7 +130,11 @@ function createWindow() {
   });
 
   mainWindow.on('closed', () => {
-    if (chatWindow) chatWindow.close(); // 메인 창 닫히면 채팅 창도 닫음
+    // 메인 창 닫히면 채팅 창들도 닫음
+    for (const w of chatWindows) {
+      try { w.close(); } catch (_) {}
+    }
+    chatWindows = [];
     mainWindow = null;
     if (ptyProcess) ptyProcess.kill();
     stopLLMHealthMonitor();
@@ -142,7 +146,9 @@ function createWindow() {
 
 function sendLLMConnectionStatus(payload) {
   if (mainWindow) mainWindow.webContents.send('llm-connection', payload);
-  if (chatWindow) chatWindow.webContents.send('llm-connection', payload);
+  for (const w of chatWindows) {
+    try { w.webContents.send('llm-connection', payload); } catch (_) {}
+  }
 }
 
 function isOpenAIModel(model) {
@@ -310,7 +316,9 @@ function sendUpdateStatus(payload) {
   };
   lastUpdateState = enriched;
   if (mainWindow) mainWindow.webContents.send('update-status', enriched);
-  if (chatWindow) chatWindow.webContents.send('update-status', enriched);
+  for (const w of chatWindows) {
+    try { w.webContents.send('update-status', enriched); } catch (_) {}
+  }
 }
 
 function setupAutoUpdater() {
@@ -394,15 +402,11 @@ function stopAutoUpdater() {
 
 // 채팅 분리 창 생성 함수
 function createChatWindow() {
-  if (chatWindow) {
-    chatWindow.focus();
-    return;
-  }
-
-  chatWindow = new BrowserWindow({
+  const sessionId = `chat_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  const win = new BrowserWindow({
     width: 450,
     height: 800,
-    title: 'Luna chat',
+    title: 'New chat',
     icon: path.join(__dirname, '../assets/Luna.jpg'),
     autoHideMenuBar: true, // 메뉴 바 숨김
     webPreferences: {
@@ -412,15 +416,13 @@ function createChatWindow() {
     }
   });
 
-  chatWindow.setMenuBarVisibility(false); // 메뉴 바 완전히 제거
+  win.setMenuBarVisibility(false); // 메뉴 바 완전히 제거
 
-  chatWindow.loadFile(path.join(__dirname, '../webview-ui/dist/index.html'));
+  win.loadFile(path.join(__dirname, 'chat.html'), { query: { session: sessionId } });
 
-  chatWindow.on('closed', () => {
-    chatWindow = null;
-    if (mainWindow) {
-      mainWindow.webContents.send('chat-window-closed');
-    }
+  chatWindows.push(win);
+  win.on('closed', () => {
+    chatWindows = chatWindows.filter(w => w !== win);
   });
 
   // If we already know the LLM status, push it into the new chat window immediately
@@ -434,6 +436,10 @@ function createChatWindow() {
 }
 
 ipcMain.on('popout-chat', () => {
+  createChatWindow();
+});
+
+ipcMain.on('new-chat-window', () => {
   createChatWindow();
 });
 
@@ -703,6 +709,7 @@ ipcMain.handle('read-directory', async (e, dirPath) => {
 });
 
 ipcMain.handle('execute-task', async (event, instruction, context) => {
+  const taskId = context?.taskId;
   const request = {
     type: 'edit_request',
     instruction,
@@ -710,7 +717,18 @@ ipcMain.handle('execute-task', async (event, instruction, context) => {
   };
 
   agentRuntime.processRequest(request, (response) => {
-    mainWindow.webContents.send('agent-response', response);
+    // Ensure taskId is present on all responses for reliable correlation in UI
+    const enriched = {
+      ...response,
+      data: { ...(response.data || {}), taskId }
+    };
+    // Send back to the window that initiated the request
+    try {
+      event.sender.send('agent-response', enriched);
+    } catch (_) {
+      // Fallback to main window
+      if (mainWindow) mainWindow.webContents.send('agent-response', enriched);
+    }
   });
 
   return { success: true };
