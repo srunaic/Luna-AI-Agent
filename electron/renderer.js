@@ -609,7 +609,8 @@ function setupIPCListeners() {
                 data: {
                     taskId,
                     state: response.data?.state || 'thinking',
-                    message: response.data?.message || ''
+                    message: response.data?.message || '',
+                    isPartial: !!response.data?.isPartial
                 }
             };
         } else if (response.type === 'done') {
