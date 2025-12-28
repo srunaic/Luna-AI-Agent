@@ -520,19 +520,17 @@
                     <div class="sidebar-section-content" id="content-packages">
                         <div class="package-manager">
                             <div class="pkg-input-group">
-                                <input id="pkg-url" class="pkg-input" placeholder="GitHub URL or npm pkg..." />
-                                <button id="btn-install-pkg" class="btn btn-sm primary">Install</button>
+                                <input id="pkg-url" class="pkg-input" placeholder="Enter ID to search..." />
+                                <button id="btn-refresh-market" class="btn btn-sm" title="Refresh Store">↻</button>
                             </div>
                             <div id="pkg-status" style="font-size:10px; color:var(--accent-color); margin-top:2px;"></div>
-                            <div class="pkg-list" id="installed-pkg-list">
-                                <!-- Example Tools -->
-                                <div class="pkg-item">
-                                    <div class="pkg-info">
-                                        <span class="pkg-name">External GitHub Tools</span>
-                                        <span class="pkg-desc">Native Integration</span>
-                                    </div>
-                                    <button class="btn btn-sm">Add</button>
-                                </div>
+                            
+                            <div style="font-size: 10px; color: #969696; margin-top: 10px; font-weight: bold;">INSTALLED</div>
+                            <div class="pkg-list" id="installed-pkg-list"></div>
+
+                            <div style="font-size: 10px; color: #969696; margin-top: 15px; font-weight: bold;">LUNA MARKET (Serverless)</div>
+                            <div class="pkg-list" id="market-pkg-list">
+                                <!-- Marketplace items will be loaded here -->
                             </div>
                         </div>
                     </div>

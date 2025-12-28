@@ -79,5 +79,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   checkUpdatesNow: () => ipcRenderer.invoke('check-updates-now'),
 
   // Editor context for chat windows
-  getEditorState: () => ipcRenderer.invoke('get-editor-state')
+  getEditorState: () => ipcRenderer.invoke('get-editor-state'),
+
+  // Marketplace & Extensions
+  getInstalledExtensions: () => ipcRenderer.invoke('get-installed-extensions'),
+  fetchMarketplace: () => ipcRenderer.invoke('fetch-marketplace'),
+  installExtension: (url, id) => ipcRenderer.invoke('install-extension', { url, id })
 });

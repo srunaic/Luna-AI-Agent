@@ -1,0 +1,19 @@
+[
+  {
+    "id": "luna-dark-theme-plus",
+    "name": "Dark Plus Theme",
+    "version": "1.0.0",
+    "description": "A refined dark theme for Luna AI Agent.",
+    "author": "Luna Team",
+    "downloadUrl": "https://github.com/srunaic/Luna-AI-Agent/archive/refs/heads/main.zip"
+  },
+  {
+    "id": "luna-git-tools",
+    "name": "Luna Git Enhanced",
+    "version": "0.5.2",
+    "description": "Enhanced Git integration for the sidebar.",
+    "author": "Luna Community",
+    "downloadUrl": "https://github.com/srunaic/Luna-AI-Agent/archive/refs/heads/main.zip"
+  }
+]
+

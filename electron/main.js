@@ -448,8 +448,100 @@ ipcMain.on('popout-chat', () => {
   createChatWindow();
 });
 
+// Extensions Path
+const EXTENSIONS_PATH = path.join(app.getPath('userData'), 'extensions');
+if (!fs.existsSync(EXTENSIONS_PATH)) {
+    fs.mkdirSync(EXTENSIONS_PATH, { recursive: true });
+}
+
+// ... existing code ...
+
 ipcMain.on('new-chat-window', () => {
   createChatWindow();
+});
+
+// --- Extensions & Marketplace ---
+const MARKET_REGISTRY_URL = 'https://raw.githubusercontent.com/srunaic/Luna-AI-Agent/main/market.json'; // 임시로 본체 저장소 사용
+
+ipcMain.handle('fetch-marketplace', async () => {
+  return new Promise((resolve) => {
+    https.get(MARKET_REGISTRY_URL, (res) => {
+      let data = '';
+      res.on('data', (chunk) => data += chunk);
+      res.on('end', () => {
+        try {
+          resolve(JSON.parse(data));
+        } catch (e) {
+          // 파일이 없으면 샘플 데이터 반환
+          resolve([
+            {
+              id: 'luna-sample-plugin',
+              name: 'Sample Plugin',
+              version: '1.0.1',
+              description: 'GitHub API 기반 서버리스 플러그인 예시입니다.',
+              author: 'Luna Dev',
+              downloadUrl: 'https://github.com/srunaic/Luna-AI-Agent/archive/refs/heads/main.zip'
+            }
+          ]);
+        }
+      });
+    }).on('error', () => resolve([]));
+  });
+});
+
+ipcMain.handle('install-extension', async (event, { url, id }) => {
+  try {
+    log.info(`Installing extension: ${id} from ${url}`);
+    const targetPath = path.join(EXTENSIONS_PATH, id);
+    const zipPath = path.join(app.getPath('temp'), `${id}.zip`);
+
+    if (!fs.existsSync(targetPath)) {
+      fs.mkdirSync(targetPath, { recursive: true });
+    }
+
+    // 1. Download ZIP
+    await new Promise((resolve, reject) => {
+      const file = fs.createWriteStream(zipPath);
+      https.get(url, (res) => {
+        if (res.statusCode === 302 || res.statusCode === 301) { // 리다이렉트 대응
+            https.get(res.headers.location, (res2) => {
+                res2.pipe(file);
+                file.on('finish', () => { file.close(); resolve(); });
+            });
+        } else {
+            res.pipe(file);
+            file.on('finish', () => { file.close(); resolve(); });
+        }
+      }).on('error', reject);
+    });
+
+    // 2. Unzip using PowerShell (Serverless - No extra npm deps)
+    const unzipCmd = `Expand-Archive -Path "${zipPath}" -DestinationPath "${targetPath}" -Force`;
+    execSync(`powershell -Command "${unzipCmd}"`);
+
+    // 3. 만약 압축을 풀었는데 안에 폴더가 하나 더 있다면 (GitHub ZIP 특성)
+    const content = fs.readdirSync(targetPath);
+    if (content.length === 1 && fs.lstatSync(path.join(targetPath, content[0])).isDirectory()) {
+        const subDir = path.join(targetPath, content[0]);
+        const files = fs.readdirSync(subDir);
+        files.forEach(f => {
+            fs.renameSync(path.join(subDir, f), path.join(targetPath, f));
+        });
+        fs.rmdirSync(subDir);
+    }
+
+    // 4. Ensure manifest.json exists
+    const manifestPath = path.join(targetPath, 'manifest.json');
+    if (!fs.existsSync(manifestPath)) {
+      const dummyManifest = { id, name: id, version: "1.0.0", entry: "index.js" };
+      fs.writeFileSync(manifestPath, JSON.stringify(dummyManifest, null, 2));
+    }
+
+    return { success: true };
+  } catch (e) {
+    log.error(`Installation failed`, e);
+    return { success: false, error: e.message };
+  }
 });
 
 // Model selection from UI -> switch health check target

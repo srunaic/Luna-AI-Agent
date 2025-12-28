@@ -891,53 +891,77 @@ function setupSidebarSections() {
 }
 
 // Package Manager Logic
-function setupPackageManager() {
-    const btnInstall = document.getElementById('btn-install-pkg');
-    const inputUrl = document.getElementById('pkg-url');
+async function setupPackageManager() {
+    const btnRefresh = document.getElementById('btn-refresh-market');
     const statusEl = document.getElementById('pkg-status');
-    const listEl = document.getElementById('installed-pkg-list');
+    const installedListEl = document.getElementById('installed-pkg-list');
+    const marketListEl = document.getElementById('market-pkg-list');
 
-    if (!btnInstall || !inputUrl) return;
-
-    btnInstall.onclick = async () => {
-        const url = inputUrl.value.trim();
-        if (!url) return;
-
-        statusEl.textContent = 'Installing package...';
-        
-        // 1. 만약 GitHub URL 이라면 터미널에 git clone 명령어를 날립니다.
-        if (url.includes('github.com')) {
-            const cmd = `git clone ${url}`;
-            if (window.electronAPI?.sendTerminalInput) {
-                window.electronAPI.sendTerminalInput(cmd + '\r\n');
-                statusEl.textContent = 'Git clone started in terminal.';
-            }
-        } else {
-            // 2. npm 패키지라면 npm install 시도
-            const cmd = `npm install ${url}`;
-            if (window.electronAPI?.sendTerminalInput) {
-                window.electronAPI.sendTerminalInput(cmd + '\r\n');
-                statusEl.textContent = 'npm install started in terminal.';
-            }
-        }
-
-        // 3. UI에 가상으로 추가 (나중에 실제 설치된 폴더 감지 로직으로 보강 가능)
-        setTimeout(() => {
-            const pkgName = url.split('/').pop().replace('.git', '');
+    const refreshInstalled = async () => {
+        if (!window.electronAPI?.getInstalledExtensions) return;
+        const installed = await window.electronAPI.getInstalledExtensions();
+        installedListEl.innerHTML = '';
+        installed.forEach(ext => {
             const item = document.createElement('div');
             item.className = 'pkg-item';
             item.innerHTML = `
                 <div class="pkg-info">
-                    <span class="pkg-name">${pkgName}</span>
-                    <span class="pkg-desc">${url.includes('github') ? 'GitHub' : 'npm'}</span>
+                    <span class="pkg-name">${ext.name}</span>
+                    <span class="pkg-desc">${ext.version}</span>
                 </div>
                 <button class="btn btn-sm">Open</button>
             `;
-            listEl.appendChild(item);
-            inputUrl.value = '';
-            statusEl.textContent = 'Package added to list.';
-        }, 2000);
+            installedListEl.appendChild(item);
+        });
     };
+
+    const refreshMarket = async () => {
+        if (!window.electronAPI?.fetchMarketplace) return;
+        statusEl.textContent = 'Updating store...';
+        const marketItems = await window.electronAPI.fetchMarketplace();
+        marketListEl.innerHTML = '';
+        
+        marketItems.forEach(item => {
+            const el = document.createElement('div');
+            el.className = 'pkg-item';
+            el.innerHTML = `
+                <div class="pkg-info">
+                    <span class="pkg-name">${item.name}</span>
+                    <span class="pkg-desc">${item.version} • ${item.author}</span>
+                </div>
+                <button class="btn btn-sm primary install-btn" data-url="${item.downloadUrl}" data-id="${item.id}">Get</button>
+            `;
+            
+            el.querySelector('.install-btn').onclick = async (e) => {
+                const btn = e.target;
+                const url = btn.dataset.url;
+                const id = btn.dataset.id;
+                
+                btn.disabled = true;
+                btn.textContent = '...';
+                statusEl.textContent = `Installing ${id}...`;
+                
+                const res = await window.electronAPI.installExtension(url, id);
+                if (res.success) {
+                    statusEl.textContent = `${id} installed!`;
+                    await refreshInstalled();
+                } else {
+                    statusEl.textContent = `Failed: ${res.error}`;
+                }
+                btn.disabled = false;
+                btn.textContent = 'Get';
+            };
+            
+            marketListEl.appendChild(el);
+        });
+        statusEl.textContent = '';
+    };
+
+    if (btnRefresh) btnRefresh.onclick = refreshMarket;
+
+    // Initial load
+    await refreshInstalled();
+    await refreshMarket();
 }
 
 window.addEventListener('DOMContentLoaded', initializeUI);
