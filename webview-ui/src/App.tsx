@@ -5,7 +5,7 @@ import { ChatHistory, ChatMessage } from './components/ChatHistory';
 import { ActionLog } from './components/ActionLog';
 import { StatusBar } from './components/StatusBar';
 import { WebviewBridge } from './types/bridge';
-import { EditorContext, PlanStep, AgentState } from './types/protocol';
+import { EditorContext, PlanStep, AgentState, ExtensionToWebviewMessage } from './types/protocol';
 import './App.css';
 
 interface AgentStore {
@@ -74,24 +74,24 @@ function App() {
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) {
-          setStore(prev => ({ ...prev, chatHistory: parsed }));
+          setStore((prev: AgentStore) => ({ ...prev, chatHistory: parsed }));
         }
       }
     } catch (_) {}
 
     // Load initial editor context
-    bridge.getEditorContext().then(context => {
-      setStore(prev => ({ ...prev, editorContext: context }));
+    bridge.getEditorContext().then((context: EditorContext | null) => {
+      setStore((prev: AgentStore) => ({ ...prev, editorContext: context }));
     });
 
     // Default model auto-connect on startup
     bridge.setModel('ollama');
 
     // Listen for messages from extension
-    const cleanup = bridge.onMessage((message: any) => {
+    const cleanup = bridge.onMessage((message: ExtensionToWebviewMessage) => {
       switch (message.type) {
         case 'plan_update':
-          setStore(prev => ({
+          setStore((prev: AgentStore) => ({
             ...prev,
             plan: message.data.steps,
             currentTaskId: message.data.taskId
@@ -107,7 +107,7 @@ function App() {
             result: message.data.result || '',
             success: message.data.success
           };
-          setStore(prev => ({
+          setStore((prev: AgentStore) => ({
             ...prev,
             actionLogs: [...prev.actionLogs, newLog]
           }));
@@ -115,7 +115,7 @@ function App() {
 
         case 'status_update':
           if (message.data.isPartial) {
-            setStore(prev => {
+            setStore((prev: AgentStore) => {
               const last = prev.chatHistory[prev.chatHistory.length - 1];
               // If the last message is a stream for this task, update it
               if (last && last.role === 'assistant' && last.id === `stream_${message.data.taskId}`) {
@@ -140,7 +140,7 @@ function App() {
               }
             });
           } else {
-            setStore(prev => ({
+            setStore((prev: AgentStore) => ({
               ...prev,
               status: message.data.state
             }));
@@ -148,9 +148,9 @@ function App() {
           break;
 
         case 'task_complete':
-          setStore(prev => {
+          setStore((prev: AgentStore) => {
             // Remove the temporary stream message and add the final one
-            const filtered = prev.chatHistory.filter(m => m.id !== `stream_${message.data.taskId}`);
+            const filtered = prev.chatHistory.filter((m: ChatMessage) => m.id !== `stream_${message.data.taskId}`);
             return {
               ...prev,
               currentTaskId: null,
@@ -169,7 +169,7 @@ function App() {
           break;
 
         case 'llm_connection':
-          setStore(prev => ({
+          setStore((prev: AgentStore) => ({
             ...prev,
             llmConnected: !!message.data?.connected,
             llmProvider: message.data?.provider || null
@@ -177,7 +177,7 @@ function App() {
           break;
 
         case 'update_status':
-          setStore(prev => ({
+          setStore((prev: AgentStore) => ({
             ...prev,
             update: {
               state: message.data?.state || 'idle',
@@ -191,7 +191,7 @@ function App() {
           break;
 
         case 'editor_state_update':
-          setStore(prev => ({
+          setStore((prev: AgentStore) => ({
             ...prev,
             editorContext: {
               ...prev.editorContext,
@@ -218,7 +218,7 @@ function App() {
 
   const handleExecuteTask = async (instruction: string, model: string) => {
     try {
-      setStore(prev => ({
+      setStore((prev: AgentStore) => ({
         ...prev,
         status: 'thinking',
         chatHistory: [
@@ -232,7 +232,7 @@ function App() {
       });
     } catch (error) {
       console.error('Task execution failed:', error);
-      setStore(prev => ({
+      setStore((prev: AgentStore) => ({
         ...prev,
         status: 'idle',
         chatHistory: [
@@ -246,7 +246,7 @@ function App() {
   const handleCancelTask = () => {
     if (store.currentTaskId) {
       bridge.cancelTask(store.currentTaskId);
-      setStore(prev => ({
+      setStore((prev: AgentStore) => ({
         ...prev,
         currentTaskId: null,
         status: 'idle'
