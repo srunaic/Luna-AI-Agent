@@ -84,7 +84,51 @@
             flex-direction: column;
             min-width: 180px;
             max-width: 600px;
+            overflow: hidden;
         }
+
+        .sidebar-sections {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-section-header {
+            padding: 8px 12px;
+            font-size: 11px;
+            font-weight: 700;
+            color: #969696;
+            background: #252526;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            user-select: none;
+            border-bottom: 1px solid var(--border-color);
+            text-transform: uppercase;
+        }
+
+        .sidebar-section-header:hover { color: #fff; }
+        .sidebar-section-header .icon { margin-right: 6px; font-size: 10px; transition: transform 0.2s; }
+        .sidebar-section-header.collapsed .icon { transform: rotate(-90deg); }
+        .sidebar-section-content { flex: 1; min-height: 0; }
+        .sidebar-section-content.hidden { display: none; }
+
+        .package-manager { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+        .pkg-input-group { display: flex; gap: 4px; }
+        .pkg-input { 
+            flex: 1; background: #3c3c3c; border: 1px solid #3e3e42; color: #ccc; 
+            padding: 4px 8px; font-size: 12px; border-radius: 4px; outline: none;
+        }
+        .pkg-list { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+        .pkg-item { 
+            background: #2d2d30; padding: 8px; border-radius: 4px; border: 1px solid #3e3e42;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .pkg-info { display: flex; flex-direction: column; }
+        .pkg-name { font-size: 12px; font-weight: 600; color: #e1e1e1; }
+        .pkg-desc { font-size: 10px; color: #858585; }
+        .btn-sm { padding: 2px 8px; font-size: 11px; }
 
         .sidebar-header {
             padding: 12px 16px;
@@ -453,10 +497,47 @@
                         <button id="nav-back" class="nav-btn" title="Back">←</button>
                         <button id="nav-forward" class="nav-btn" title="Forward">→</button>
                     </div>
-                    <span>EXPLORER</span>
+                    <span>LUNA IDE</span>
                 </div>
             </div>
-            <div id="file-tree" class="file-tree"></div>
+
+            <div class="sidebar-sections">
+                <!-- Section: Explorer -->
+                <div class="sidebar-section">
+                    <div class="sidebar-section-header" id="header-explorer">
+                        <span class="icon">▼</span> EXPLORER
+                    </div>
+                    <div class="sidebar-section-content" id="content-explorer">
+                        <div id="file-tree" class="file-tree"></div>
+                    </div>
+                </div>
+
+                <!-- Section: Package Manager -->
+                <div class="sidebar-section">
+                    <div class="sidebar-section-header" id="header-packages">
+                        <span class="icon">▼</span> LUNA PACKAGES
+                    </div>
+                    <div class="sidebar-section-content" id="content-packages">
+                        <div class="package-manager">
+                            <div class="pkg-input-group">
+                                <input id="pkg-url" class="pkg-input" placeholder="GitHub URL or npm pkg..." />
+                                <button id="btn-install-pkg" class="btn btn-sm primary">Install</button>
+                            </div>
+                            <div id="pkg-status" style="font-size:10px; color:var(--accent-color); margin-top:2px;"></div>
+                            <div class="pkg-list" id="installed-pkg-list">
+                                <!-- Example Tools -->
+                                <div class="pkg-item">
+                                    <div class="pkg-info">
+                                        <span class="pkg-name">External GitHub Tools</span>
+                                        <span class="pkg-desc">Native Integration</span>
+                                    </div>
+                                    <button class="btn btn-sm">Add</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Splitter: Sidebar / Main -->

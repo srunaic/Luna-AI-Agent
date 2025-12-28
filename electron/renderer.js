@@ -34,6 +34,8 @@ function initializeUI() {
         initializeAIPanel();
         setupSplitters();
         setupTerminal();
+        setupSidebarSections();
+        setupPackageManager();
     } catch (e) {
         console.error('UI Setup error:', e);
     }
@@ -866,6 +868,76 @@ function updateNavButtons() {
 function initializeAIPanel() {
     const iframe = document.getElementById('ai-panel-iframe');
     if (iframe) iframe.src = '../webview-ui/dist/index.html?session=main';
+}
+
+// Sidebar Sections (Accordion)
+function setupSidebarSections() {
+    const sections = [
+        { header: 'header-explorer', content: 'content-explorer' },
+        { header: 'header-packages', content: 'content-packages' }
+    ];
+
+    sections.forEach(s => {
+        const h = document.getElementById(s.header);
+        const c = document.getElementById(s.content);
+        if (!h || !c) return;
+
+        h.onclick = () => {
+            const isCollapsed = h.classList.toggle('collapsed');
+            c.classList.toggle('hidden', isCollapsed);
+            h.querySelector('.icon').textContent = isCollapsed ? '▶' : '▼';
+        };
+    });
+}
+
+// Package Manager Logic
+function setupPackageManager() {
+    const btnInstall = document.getElementById('btn-install-pkg');
+    const inputUrl = document.getElementById('pkg-url');
+    const statusEl = document.getElementById('pkg-status');
+    const listEl = document.getElementById('installed-pkg-list');
+
+    if (!btnInstall || !inputUrl) return;
+
+    btnInstall.onclick = async () => {
+        const url = inputUrl.value.trim();
+        if (!url) return;
+
+        statusEl.textContent = 'Installing package...';
+        
+        // 1. 만약 GitHub URL 이라면 터미널에 git clone 명령어를 날립니다.
+        if (url.includes('github.com')) {
+            const cmd = `git clone ${url}`;
+            if (window.electronAPI?.sendTerminalInput) {
+                window.electronAPI.sendTerminalInput(cmd + '\r\n');
+                statusEl.textContent = 'Git clone started in terminal.';
+            }
+        } else {
+            // 2. npm 패키지라면 npm install 시도
+            const cmd = `npm install ${url}`;
+            if (window.electronAPI?.sendTerminalInput) {
+                window.electronAPI.sendTerminalInput(cmd + '\r\n');
+                statusEl.textContent = 'npm install started in terminal.';
+            }
+        }
+
+        // 3. UI에 가상으로 추가 (나중에 실제 설치된 폴더 감지 로직으로 보강 가능)
+        setTimeout(() => {
+            const pkgName = url.split('/').pop().replace('.git', '');
+            const item = document.createElement('div');
+            item.className = 'pkg-item';
+            item.innerHTML = `
+                <div class="pkg-info">
+                    <span class="pkg-name">${pkgName}</span>
+                    <span class="pkg-desc">${url.includes('github') ? 'GitHub' : 'npm'}</span>
+                </div>
+                <button class="btn btn-sm">Open</button>
+            `;
+            listEl.appendChild(item);
+            inputUrl.value = '';
+            statusEl.textContent = 'Package added to list.';
+        }, 2000);
+    };
 }
 
 window.addEventListener('DOMContentLoaded', initializeUI);

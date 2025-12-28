@@ -126,7 +126,10 @@ class AgentRuntime {
                 stream: true,
                 options: {
                     num_predict: numPredict,
-                    temperature
+                    temperature,
+                    num_ctx: 2048, // Reduce context window for much faster TTFT
+                    top_k: 20,     // Speed up sampling
+                    top_p: 0.9     // Speed up sampling
                 }
             };
             const data = JSON.stringify(payload);
