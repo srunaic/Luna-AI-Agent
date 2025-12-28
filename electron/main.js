@@ -155,6 +155,13 @@ function sendUpdateStatus(payload) {
 
 function setupAutoUpdater() {
   try {
+    // Auto-update only works reliably for installed/packaged apps (NSIS-installed).
+    // Prevent confusing behavior during dev or when running unpacked binaries.
+    if (!app.isPackaged) {
+      sendUpdateStatus({ state: 'idle', message: 'Auto-update disabled (dev/unpacked build)' });
+      return;
+    }
+
     // Logging
     autoUpdater.logger = log;
     log.transports.file.level = 'info';
@@ -194,10 +201,10 @@ function setupAutoUpdater() {
     });
 
     // Initial check + periodic checks
-    autoUpdater.checkForUpdates().catch((e) => log.warn('[autoUpdate] check failed', e));
+    autoUpdater.checkForUpdatesAndNotify().catch((e) => log.warn('[autoUpdate] check failed', e));
     if (!updateCheckInterval) {
       updateCheckInterval = setInterval(() => {
-        autoUpdater.checkForUpdates().catch((e) => log.warn('[autoUpdate] periodic check failed', e));
+        autoUpdater.checkForUpdatesAndNotify().catch((e) => log.warn('[autoUpdate] periodic check failed', e));
       }, 10 * 60 * 1000);
     }
   } catch (e) {
