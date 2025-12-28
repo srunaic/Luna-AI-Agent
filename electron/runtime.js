@@ -142,10 +142,12 @@ class AgentRuntime {
                 options: {
                     num_predict: numPredict,
                     temperature,
-                    num_ctx: directMode ? 4096 : 2048,
-                    top_k: 20,
-                    top_p: 0.9
-                }
+                    num_ctx: 1024,
+                    top_k: 10,
+                    top_p: 0.5,
+                    repeat_penalty: 1.1
+                },
+                keep_alive: "5m"
             };
             const data = JSON.stringify(payload);
             const dataBytes = Buffer.byteLength(data, 'utf8');
@@ -172,11 +174,20 @@ class AgentRuntime {
 
                 let fullText = "";
                 let buffer = "";
+                let firstToken = true;
 
                 res.on('data', (chunk) => {
+                    if (firstToken) {
+                        // 첫 토큰이 오면 즉시 thinking 상태를 업데이트하여 응답 시작을 알림
+                        onResponse({
+                            type: 'status',
+                            data: { state: 'typing', message: '', isPartial: true, taskId: context.taskId }
+                        });
+                        firstToken = false;
+                    }
+
                     buffer += chunk.toString();
                     
-                    // Robust JSON Stream Parsing
                     let boundary = buffer.indexOf('}');
                     while (boundary !== -1) {
                         const jsonStr = buffer.substring(0, boundary + 1);
@@ -189,7 +200,7 @@ class AgentRuntime {
                                 if (onResponse) {
                                     onResponse({
                                         type: 'status',
-                                        data: { state: 'thinking', message: fullText, isPartial: true, taskId: context.taskId }
+                                        data: { state: 'typing', message: fullText, isPartial: true, taskId: context.taskId }
                                     });
                                 }
                             }
@@ -197,9 +208,7 @@ class AgentRuntime {
                                 resolve(fullText);
                                 return;
                             }
-                        } catch (e) {
-                            // ignore partials/errors during parsing
-                        }
+                        } catch (e) {}
                         boundary = buffer.indexOf('}');
                     }
                 });
