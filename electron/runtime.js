@@ -1,4 +1,4 @@
-﻿// Luna Agent Runtime - Phase 1: Real Brain Integration (v0.1.28 Build)
+// Luna Agent Runtime - Phase 1: Real Brain Integration (v0.1.28 Build)
 const http = require('http');
 const https = require('https');
 

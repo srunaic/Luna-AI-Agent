@@ -1,4 +1,4 @@
-﻿/** Luna Soul Chat Input Component */
+/** Luna Soul Chat Input Component */
 import { useState, useRef, useEffect } from 'react';
 import { EditorContext } from '../types/protocol';
 import './ChatInput.css';
