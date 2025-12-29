@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+﻿import { useState, useRef, useEffect } from 'react';
 import { EditorContext } from '../types/protocol';
 import './ChatInput.css';
 
@@ -12,13 +12,12 @@ interface ChatInputProps {
 
 export function ChatInput({ onExecute, onCancel, isExecuting, editorContext, onModelChange }: ChatInputProps) {
   const [instruction, setInstruction] = useState('');
-  const [model, setModel] = useState('ollama'); // Default model
+  const [model, setModel] = useState('luna-soul');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!instruction.trim() || isExecuting) return;
-
     await onExecute(instruction.trim(), model);
     setInstruction('');
   };
@@ -39,20 +38,13 @@ export function ChatInput({ onExecute, onCancel, isExecuting, editorContext, onM
 
   const getContextHint = () => {
     if (!editorContext) return null;
-
     const hints = [];
     if (editorContext.activeFile) {
       const fileName = editorContext.activeFile.split(/[/\\]/).pop();
-      hints.push(`📄 ${fileName}`);
+      hints.push("File: " + fileName);
     }
-    if (editorContext.selection) {
-      hints.push(`📝 Selected`);
-    }
-    if (editorContext.cursor) {
-      hints.push(`📍 Line ${editorContext.cursor.line}`);
-    }
-
-    return hints.length > 0 ? hints.join(' • ') : null;
+    if (editorContext.selection) hints.push('Selected');
+    return hints.length > 0 ? hints.join(' ??') : null;
   };
 
   return (
@@ -70,9 +62,8 @@ export function ChatInput({ onExecute, onCancel, isExecuting, editorContext, onM
           disabled={isExecuting}
           className="model-select"
         >
-          <option value="ollama">Ollama (Local)</option>
-          <option value="vllm">vLLM (High Speed) ⚡</option>
-          <option value="luna-soul">Luna Soul ✨</option>
+          <option value="luna-soul">Luna Soul</option>
+          <option value="vllm">vLLM High Speed</option>
           <option value="gpt-4o">GPT-4o</option>
           <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
         </select>
@@ -91,29 +82,16 @@ export function ChatInput({ onExecute, onCancel, isExecuting, editorContext, onM
             value={instruction}
             onChange={(e) => setInstruction(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask Luna anything... (Shift+Enter for new line)"
+            placeholder="Ask Luna anything..."
             disabled={isExecuting}
             rows={1}
             className="instruction-input"
           />
-
           <div className="input-actions">
             {isExecuting ? (
-              <button
-                type="button"
-                onClick={onCancel}
-                className="cancel-button"
-              >
-                Cancel
-              </button>
+              <button type="button" onClick={onCancel} className="cancel-button">Cancel</button>
             ) : (
-              <button
-                type="submit"
-                disabled={!instruction.trim()}
-                className="execute-button"
-              >
-                Chat
-              </button>
+              <button type="submit" disabled={!instruction.trim()} className="execute-button">Chat</button>
             )}
           </div>
         </div>
