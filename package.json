@@ -2,39 +2,12 @@
   "name": "luna-ai-agent",
   "displayName": "Luna AI Agent",
   "description": "Luna AI Agent - High-performance AI Orchestrator",
-  "version": "0.1.24",
+  "version": "0.1.26",
   "repository": {
     "type": "git",
     "url": "https://github.com/srunaic/Luna-AI-Agent.git"
   },
-  "engines": {
-    "vscode": "^1.74.0"
-  },
-  "categories": [
-    "Other"
-  ],
-  "activationEvents": [
-    "onStartupFinished"
-  ],
   "main": "electron/main.js",
-  "contributes": {
-    "commands": [
-      {
-        "command": "luna.openChat",
-        "title": "Open Luna Chat"
-      }
-    ],
-    "menus": {
-      "editor/context": [
-        {
-          "command": "luna.openChat",
-          "when": "editorTextFocus",
-          "group": "navigation"
-        }
-      ]
-    }
-  },
-  "homepage": "./",
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
@@ -49,22 +22,11 @@
     "build-electron": "npm run compile && npm run build-webview && electron-builder",
     "build-electron-win": "npm run compile && npm run build-webview && electron-builder --win --publish never",
     "release-win": "npm run compile && npm run build-webview && electron-builder --win --publish always",
-    "release-win-auto": "node -e \"const fs=require('fs'); const p=JSON.parse(fs.readFileSync('package.json')); const d=new Date(); const ts=String(d.getFullYear()).slice(2)+('0'+(d.getMonth()+1)).slice(-2)+('0'+d.getDate()).slice(-2)+('0'+d.getHours()).slice(-2)+('0'+d.getMinutes()).slice(-2); p.version=p.version.split('-')[0]+'-v'+ts; fs.writeFileSync('package.json', JSON.stringify(p, null, 2))\" && npm run release-win",
-    "build-electron-mac": "npm run compile && npm run build-webview && electron-builder --mac",
-    "build-electron-linux": "npm run compile && npm run build-webview && electron-builder --linux",
-    "package-electron": "echo \"Deprecated: Use npm run build-electron-win (electron-builder)\" && exit 1"
+    "release-win-auto": "node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('package.json')); const d=new Date(); const ts=String(d.getFullYear()).slice(2)+('0'+(d.getMonth()+1)).slice(-2)+('0'+d.getDate()).slice(-2)+('0'+d.getHours()).slice(-2)+('0'+d.getMinutes()).slice(-2); p.version=p.version.split('-')[0]+'-v'+ts; fs.writeFileSync('package.json', JSON.stringify(p, null, 2))" && npm run release-win"
   },
   "devDependencies": {
-    "@types/mocha": "^10.0.1",
-    "@types/node": "16.x",
-    "@types/vscode": "^1.74.0",
-    "@typescript-eslint/eslint-plugin": "^5.45.0",
-    "@typescript-eslint/parser": "^5.45.0",
     "electron": "^25.0.0",
     "electron-builder": "^24.13.3",
-    "electron-packager": "^17.1.2",
-    "eslint": "^8.28.0",
-    "mocha": "^10.1.0",
     "typescript": "^4.9.3"
   },
   "dependencies": {
@@ -97,19 +59,6 @@
         "repo": "Luna-AI-Agent",
         "releaseType": "release"
       }
-    ],
-    "mac": {
-      "target": "dmg",
-      "icon": "assets/Luna.jpg"
-    },
-    "linux": {
-      "target": "AppImage",
-      "icon": "assets/Luna.jpg"
-    },
-    "nsis": {
-      "oneClick": false,
-      "perMachine": false,
-      "allowToChangeInstallationDirectory": true
-    }
+    ]
   }
 }
