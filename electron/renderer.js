@@ -1,4 +1,4 @@
-// Luna AI Agent - Renderer Process
+﻿// Luna AI Agent - Renderer Process
 let editor = null; let currentFile = null; let currentFolder = null; let terminal = null; let terminalFitAddon = null; let navigationHistory = []; let historyIndex = -1; let activeTaskId = null;
 let editorState = { openFiles: [], activeFile: null, cursor: { line: 1, column: 1 }, selection: null, projectRoot: null };
 
