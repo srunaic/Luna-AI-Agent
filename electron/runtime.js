@@ -224,21 +224,22 @@ class AgentRuntime {
             const numPredict = Number(cfg.numPredict || 1024); // Increased for reasoning
             const temperature = Number(cfg.temperature ?? 0.1);
 
-            // Luna Soul은 스트리밍 없이 한 번에 응답을 생성하여 "팍" 나오도록 설정
+            // Luna Soul 초광속 모드 설정
             const isLunaSoul = modelName === 'luna-soul';
             const payload = {
                 model: modelName,
                 prompt: prompt,
-                stream: !isLunaSoul, // Luna Soul은 스트리밍 OFF (한 번에 팍!)
+                stream: true, // 다시 스트리밍으로 전환하여 '첫 토큰' 반응성 극대화
                 options: {
-                    num_predict: isLunaSoul ? Math.min(numPredict, 512) : numPredict, // Luna Soul은 짧고 강력하게
-                    temperature: isLunaSoul ? 0.05 : temperature, // 더 결정적이고 빠른 응답
-                    num_ctx: isLunaSoul ? 1024 : 2048, // Luna Soul은 컨텍스트도 최적화
-                    top_k: isLunaSoul ? 5 : 10, // 더 빠른 샘플링
-                    top_p: isLunaSoul ? 0.3 : 0.5, // 더 좁은 확률 분포
-                    repeat_penalty: 1.1
+                    num_predict: isLunaSoul ? 256 : numPredict, // Luna Soul은 짧고 간결하게 (속도 최우선)
+                    temperature: isLunaSoul ? 0.1 : temperature, 
+                    num_ctx: isLunaSoul ? 512 : 2048, // 컨텍스트를 더 줄여서 초기 연산량 감소
+                    top_k: 10,
+                    top_p: 0.5,
+                    repeat_penalty: 1.1,
+                    num_thread: 8 // CPU 스레드 할당 강제화 (성능 향상)
                 },
-                keep_alive: isLunaSoul ? "10m" : "5m" // Luna Soul은 더 오래 메모리에 유지
+                keep_alive: "30m" // 모델을 30분 동안 상주시켜서 로딩 지연 완전 제거
             };
             const data = JSON.stringify(payload);
             const dataBytes = Buffer.byteLength(data, 'utf8');
@@ -274,14 +275,6 @@ class AgentRuntime {
                 let firstToken = true;
 
                 res.on('data', (chunk) => {
-                    if (firstToken) {
-                        onResponse({
-                            type: 'status',
-                            data: { state: 'typing', message: '', isPartial: true, taskId: context.taskId }
-                        });
-                        firstToken = false;
-                    }
-
                     buffer += chunk.toString();
 
                     let boundary = buffer.indexOf('}');
@@ -291,15 +284,24 @@ class AgentRuntime {
 
                         try {
                             const json = JSON.parse(jsonStr);
+                            
+                            // 첫 토큰이 오자마자 "Thinking"을 끄고 즉시 답변 시작
+                            if (firstToken && json.response) {
+                                onResponse({
+                                    type: 'status',
+                                    data: { state: 'typing', message: '', isPartial: true, taskId: context.taskId }
+                                });
+                                firstToken = false;
+                            }
+
                             if (json.response) {
                                 fullText += json.response;
-                                if (onResponse) {
-                                    onResponse({
-                                        type: 'status',
-                                        data: { state: 'typing', message: fullText, isPartial: true, taskId: context.taskId }
-                                    });
-                                }
+                                onResponse({
+                                    type: 'status',
+                                    data: { state: 'typing', message: fullText, isPartial: true, taskId: context.taskId }
+                                });
                             }
+                            
                             if (json.done) {
                                 resolve(fullText);
                                 return;
@@ -309,7 +311,9 @@ class AgentRuntime {
                     }
                 });
 
-                res.on('end', () => resolve(fullText));
+                res.on('end', () => {
+                    if (!fullText) resolve("");
+                });
             });
 
             req.on('error', (e) => reject(new Error(`Luna Soul LLM connection failed: ${e.message}`)));
