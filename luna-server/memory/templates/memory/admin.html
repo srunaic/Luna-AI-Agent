@@ -1,0 +1,197 @@
+﻿<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Luna Memory Admin</title>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 16px; }
+      .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }
+      input, textarea { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; }
+      input[type="text"] { padding: 6px 8px; min-width: 360px; }
+      button { padding: 6px 10px; cursor:pointer; }
+      table { border-collapse: collapse; width: 100%; }
+      th, td { border: 1px solid #ddd; padding: 8px; vertical-align: top; }
+      th { background: #f5f5f5; text-align:left; }
+      .muted { color:#666; font-size:12px; }
+      .panel { border:1px solid #ddd; padding:12px; border-radius:8px; margin-top:12px; }
+      textarea { width: 100%; min-height: 120px; padding: 8px; }
+      pre { white-space: pre-wrap; word-break: break-word; }
+    </style>
+  </head>
+  <body>
+    <h2>Luna Memory Admin</h2>
+
+    <div class="row">
+      <label>Admin Token:</label>
+      <input id="token" type="text" placeholder="X-Luna-Admin-Token (optional if localhost-only)" />
+      <button onclick="saveToken()">Save</button>
+      <span class="muted">If server has LUNA_ADMIN_TOKEN set, you must enter it here.</span>
+    </div>
+
+    <div class="row">
+      <button onclick="loadInfo()">Info</button>
+      <button onclick="loadList()">List</button>
+      <label>Offset:</label><input id="offset" type="text" value="0" style="min-width:80px" />
+      <label>Limit:</label><input id="limit" type="text" value="50" style="min-width:80px" />
+      <label>Search:</label><input id="query" type="text" placeholder="semantic search query" />
+      <button onclick="runSearch()">Search</button>
+    </div>
+
+    <div class="panel">
+      <div><b>Status</b></div>
+      <pre id="status" class="muted">Ready.</pre>
+    </div>
+
+    <div class="panel">
+      <div><b>Results</b></div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 260px;">ID</th>
+            <th>Text</th>
+            <th style="width: 280px;">Metadata</th>
+            <th style="width: 120px;">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+
+    <div class="panel">
+      <div><b>Edit / Upsert</b></div>
+      <div class="row">
+        <label>ID:</label><input id="edit_id" type="text" placeholder="existing id" />
+        <button onclick="fetchOne()">Load by ID</button>
+      </div>
+      <div class="row" style="width:100%">
+        <div style="flex:1">
+          <div class="muted">Text</div>
+          <textarea id="edit_text" placeholder="memory text"></textarea>
+        </div>
+        <div style="flex:1">
+          <div class="muted">Metadata (JSON)</div>
+          <textarea id="edit_meta" placeholder='{"type":"memory","source":"manual"}'></textarea>
+        </div>
+      </div>
+      <div class="row">
+        <button onclick="upsert()">Upsert</button>
+      </div>
+    </div>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const base = "/api/memory";
+
+      function hdrs() {
+        const h = { "Content-Type": "application/json" };
+        const t = ($("token").value || "").trim();
+        if (t) h["X-Luna-Admin-Token"] = t;
+        return h;
+      }
+
+      function setStatus(obj) {
+        $("status").textContent = typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
+      }
+
+      function saveToken() {
+        localStorage.setItem("luna_admin_token", $("token").value || "");
+        setStatus("Token saved.");
+      }
+
+      function loadToken() {
+        $("token").value = localStorage.getItem("luna_admin_token") || "";
+      }
+
+      function escapeHtml(s) {
+        return (s || "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+      }
+
+      function renderRows(items) {
+        const tb = $("rows");
+        tb.innerHTML = "";
+        for (const it of items) {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td><code>${escapeHtml(it.id || "")}</code></td>
+            <td><pre>${escapeHtml((it.text || "").slice(0, 4000))}</pre></td>
+            <td><pre>${escapeHtml(JSON.stringify(it.metadata ?? {}, null, 2))}</pre></td>
+            <td>
+              <button onclick="prefill(${JSON.stringify(it.id)})">Edit</button>
+              <button onclick="delOne(${JSON.stringify(it.id)})">Delete</button>
+            </td>
+          `;
+          tb.appendChild(tr);
+        }
+      }
+
+      async function loadInfo() {
+        const r = await fetch(`${base}/admin/info/`, { headers: hdrs() });
+        const j = await r.json();
+        setStatus(j);
+      }
+
+      async function loadList() {
+        const offset = parseInt(($("offset").value || "0"), 10);
+        const limit = parseInt(($("limit").value || "50"), 10);
+        const r = await fetch(`${base}/admin/list/?offset=${offset}&limit=${limit}`, { headers: hdrs() });
+        const j = await r.json();
+        setStatus(j);
+        renderRows(j.results || []);
+      }
+
+      async function runSearch() {
+        const q = ($("query").value || "").trim();
+        if (!q) return setStatus("Enter a query first.");
+        const r = await fetch(`${base}/search/`, { method: "POST", headers: hdrs(), body: JSON.stringify({ query: q, top_k: 20 }) });
+        const j = await r.json();
+        setStatus(j);
+        renderRows((j.results || []).map(x => ({ id: x.id, text: x.text, metadata: x.metadata })));
+      }
+
+      async function prefill(id) {
+        $("edit_id").value = id;
+        await fetchOne();
+      }
+
+      async function fetchOne() {
+        const id = ($("edit_id").value || "").trim();
+        if (!id) return setStatus("Enter an id first.");
+        const r = await fetch(`${base}/admin/get/?id=${encodeURIComponent(id)}`, { headers: hdrs() });
+        const j = await r.json();
+        setStatus(j);
+        if (r.ok) {
+          $("edit_text").value = j.text || "";
+          $("edit_meta").value = JSON.stringify(j.metadata ?? {}, null, 2);
+        }
+      }
+
+      async function upsert() {
+        const id = ($("edit_id").value || "").trim();
+        const text = $("edit_text").value || "";
+        let meta = {};
+        try { meta = JSON.parse($("edit_meta").value || "{}"); } catch (e) { return setStatus("Metadata JSON parse error: " + e); }
+
+        const payload = { items: [ { text, metadata: meta } ] };
+        if (id) payload.items[0].id = id;
+
+        const r = await fetch(`${base}/upsert/`, { method: "POST", headers: hdrs(), body: JSON.stringify(payload) });
+        const j = await r.json();
+        setStatus(j);
+        await loadList();
+      }
+
+      async function delOne(id) {
+        if (!confirm("Delete " + id + " ?")) return;
+        const r = await fetch(`${base}/admin/delete/`, { method: "POST", headers: hdrs(), body: JSON.stringify({ ids: [id] }) });
+        const j = await r.json();
+        setStatus(j);
+        await loadList();
+      }
+
+      loadToken();
+      loadInfo();
+      loadList();
+    </script>
+  </body>
+</html>

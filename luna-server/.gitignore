@@ -11,3 +11,6 @@ media/
 
 # Chroma persistent storage (default)
 chroma_db/
+server_out.txt
+server_err.txt
+
