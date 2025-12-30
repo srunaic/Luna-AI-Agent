@@ -6,7 +6,7 @@
 
 ## 핵심 기능
 - 메모리/RAG: ChromaDB 저장 + 검색
-- 관리자 UI: http://127.x.x.x.xxxx/api/memory/admin/ui/ <-- 내 관리자 로컬 서버에서만 작동가능
+- 관리자 UI: http://127.x.x.x.xxxx/api/memory/admin/ui/ <-- 내 관리자 서버에서만 작동가능
 - 로컬 Django 자동 구동: 127.0.0.1:8000
 
 ## 링크
