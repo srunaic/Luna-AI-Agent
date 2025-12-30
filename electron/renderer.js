@@ -652,7 +652,15 @@ function setupIPCListeners() {
     });
 
     // LLM connection status -> forward to AI webview
-    window.electronAPI.on('llm-connection', (event, payload) => {
+    window.electronAPI.on('django-ready', async () => {
+  try {
+    await refreshPackageList();
+  } catch (e) {
+    console.error('django-ready refresh error', e);
+  }
+});
+
+window.electronAPI.on('llm-connection', (event, payload) => {
         const iframe = document.getElementById('ai-panel-iframe');
         if (iframe && iframe.contentWindow) {
             iframe.contentWindow.postMessage({

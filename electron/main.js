@@ -987,3 +987,148 @@ ipcMain.on('clipboard-write', (event, text) => {
 ipcMain.handle('clipboard-read', () => {
   return clipboard.readText();
 });
+
+
+
+function broadcastDjangoStatus(payload) {
+  if (mainWindow) mainWindow.webContents.send('django-status', payload);
+  for (const w of chatWindows) {
+    try { w.webContents.send('django-status', payload); } catch (_) { }
+  }
+}
+
+function broadcastDjangoReady(payload) {
+  if (mainWindow) mainWindow.webContents.send('django-ready', payload);
+  for (const w of chatWindows) {
+    try { w.webContents.send('django-ready', payload); } catch (_) { }
+  }
+}
+
+function checkHttpOk(url, timeoutMs = 700) {
+  return new Promise((resolve) => {
+    try {
+      const u = new URL(url);
+      const client = u.protocol === 'https:' ? https : http;
+      const req = client.request(
+        {
+          hostname: u.hostname,
+          port: u.port ? Number(u.port) : (u.protocol === 'https:' ? 443 : 80),
+          path: u.pathname + (u.search || ''),
+          method: 'GET'
+        },
+        (res) => {
+          const ok = res.statusCode >= 200 && res.statusCode < 500;
+          res.resume();
+          resolve(ok);
+        }
+      );
+      req.on('error', () => resolve(false));
+      req.setTimeout(timeoutMs, () => { try { req.destroy(); } catch (_) {} resolve(false); });
+      req.end();
+    } catch (_) {
+      resolve(false);
+    }
+  });
+}
+
+async function waitForDjangoReady(timeoutMs = 15000) {
+  const start = Date.now();
+  const probe = `${DJANGO_API_URL}/admin/`;
+  while (Date.now() - start < timeoutMs) {
+    const ok = await checkHttpOk(probe, 900);
+    if (ok) return true;
+    await new Promise(r => setTimeout(r, 450));
+  }
+  return false;
+}
+
+function resolvePythonCommand() {
+  const forced = String(process.env.LUNA_PYTHON_PATH || '').trim();
+  if (forced) return { cmd: forced, prefix: [] };
+  if (process.platform === 'win32') {
+    return { cmd: 'python', prefix: [], fallback: { cmd: 'py', prefix: ['-3'] } };
+  }
+  return { cmd: 'python3', prefix: [], fallback: { cmd: 'python', prefix: [] } };
+}
+
+function startDjangoServer() {
+  try {
+    if (djangoProcess || djangoStarting) return;
+
+    const serverPath = app.isPackaged
+      ? path.join(process.resourcesPath, 'luna-server')
+      : path.join(__dirname, '../luna-server');
+
+    if (!fs.existsSync(serverPath)) {
+      log.warn('[django] serverPath missing; not starting', { serverPath });
+      broadcastDjangoStatus({ state: 'missing', serverPath });
+      return;
+    }
+
+    djangoStarting = true;
+    broadcastDjangoStatus({ state: 'starting', serverPath, url: DJANGO_API_URL });
+
+    (async () => {
+      const alreadyUp = await checkHttpOk(`${DJANGO_API_URL}/admin/`, 600);
+      if (alreadyUp) {
+        djangoStarting = false;
+        broadcastDjangoStatus({ state: 'ready', url: DJANGO_API_URL, note: 'already running' });
+        broadcastDjangoReady({ url: DJANGO_API_URL });
+        return;
+      }
+
+      const py = resolvePythonCommand();
+      const baseArgs = ['manage.py', 'runserver', '127.0.0.1:8000', '--noreload'];
+
+      const spawnOne = (cmd, prefix) => {
+        const args = [...(prefix || []), ...baseArgs];
+        log.info('[django] spawn', { cmd, args, cwd: serverPath });
+        const p = spawn(cmd, args, { cwd: serverPath, shell: true, detached: false });
+        p.stdout?.on('data', (d) => log.info('[django]', String(d).trim()));
+        p.stderr?.on('data', (d) => log.error('[django]', String(d).trim()));
+        p.on('exit', (code) => log.warn('[django] exited', { code }));
+        p.on('error', (e) => log.error('[django] spawn error', e));
+        return p;
+      };
+
+      djangoProcess = spawnOne(py.cmd, py.prefix);
+
+      let ok = await waitForDjangoReady(15000);
+      if (!ok && py.fallback) {
+        try { stopDjangoServer(); } catch (_) { }
+        djangoStarting = true;
+        djangoProcess = spawnOne(py.fallback.cmd, py.fallback.prefix);
+        ok = await waitForDjangoReady(15000);
+      }
+
+      djangoStarting = false;
+      if (ok) {
+        broadcastDjangoStatus({ state: 'ready', url: DJANGO_API_URL });
+        broadcastDjangoReady({ url: DJANGO_API_URL });
+      } else {
+        broadcastDjangoStatus({ state: 'failed', url: DJANGO_API_URL });
+      }
+    })().catch((e) => {
+      djangoStarting = false;
+      log.error('[django] start flow failed', e);
+      try { broadcastDjangoStatus({ state: 'error', message: e?.message || String(e) }); } catch (_) {}
+    });
+  } catch (e) {
+    djangoStarting = false;
+    log.error('[django] start failed', e);
+    try { broadcastDjangoStatus({ state: 'error', message: e?.message || String(e) }); } catch (_) {}
+  }
+}
+
+function stopDjangoServer() {
+  if (djangoProcess) {
+    if (process.platform === 'win32') {
+      try { execSync(`taskkill /pid ${djangoProcess.pid} /f /t`); } catch (_) { }
+    } else {
+      try { djangoProcess.kill(); } catch (_) { }
+    }
+    djangoProcess = null;
+  }
+  djangoStarting = false;
+}
+

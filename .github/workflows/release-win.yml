@@ -1,0 +1,43 @@
+﻿name: Release (Windows EXE)
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "npm"
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Build webview
+        run: npm run build-webview
+
+      - name: Compile
+        run: npm run compile
+
+      - name: Build Windows installer EXE (NSIS)
+        run: npx electron-builder --win --publish never
+
+      - name: Upload artifacts to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist-electron/*.exe
+            dist-electron/*.blockmap
+          fail_on_unmatched_files: true

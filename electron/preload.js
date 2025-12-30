@@ -35,7 +35,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       'llm-connection',
       'update-status',
       'open-settings',
-      'deep_learning_status'
+      'deep_learning_status', 'django-status', 'django-ready'
     ];
 
     if (validChannels.includes(channel)) {
