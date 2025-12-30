@@ -7,6 +7,57 @@ const http = require('http');
 const https = require('https');
 const log = require('electron-log');
 const { autoUpdater } = require('electron-updater');
+// ---- Crash-safe logging (critical for white screen diagnosis) ----
+log.transports.file.level = 'info';
+log.transports.console.level = 'info';
+
+const SMOKE_TEST =
+  process.env.LUNA_SMOKE_TEST === '1' ||
+  String(process.env.LUNA_SMOKE_TEST || '').toLowerCase() === 'true';
+
+process.on('uncaughtException', (err) => {
+  try { log.error('[uncaughtException]', err); } catch (_) {}
+  try { dialog.showErrorBox('Luna AI Agent - Crash (main)', err?.stack || String(err)); } catch (_) {}
+});
+
+process.on('unhandledRejection', (reason) => {
+  try { log.error('[unhandledRejection]', reason); } catch (_) {}
+  try { dialog.showErrorBox('Luna AI Agent - Crash (promise)', String(reason)); } catch (_) {}
+});
+
+// GPU issues are a common cause of blank/white window on Windows.
+if (process.platform === 'win32') {
+  try { app.disableHardwareAcceleration(); } catch (_) {}
+}
+
+const DJANGO_API_URL = process.env.LUNA_SERVER_URL || 'http://127.0.0.1:8000';
+
+const EXTENSIONS_PATH = path.join(app.getPath('userData'), 'extensions');
+if (!fs.existsSync(EXTENSIONS_PATH)) {
+  fs.mkdirSync(EXTENSIONS_PATH, { recursive: true });
+}
+
+// --- Extensions: installed list (used by renderer marketplace UI) ---
+ipcMain.handle('get-installed-extensions', async () => {
+  try {
+    if (!fs.existsSync(EXTENSIONS_PATH)) return [];
+    const dirs = fs.readdirSync(EXTENSIONS_PATH);
+    const extensions = [];
+    for (const d of dirs) {
+      const manifestPath = path.join(EXTENSIONS_PATH, d, 'manifest.json');
+      if (!fs.existsSync(manifestPath)) continue;
+      try {
+        const m = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+        extensions.push(m);
+      } catch (_) {}
+    }
+    return extensions;
+  } catch (_) {
+    return [];
+  }
+});
+
+
 
 // 관리자 권한 체크 함수
 function isAdmin() {
@@ -22,6 +73,8 @@ function isAdmin() {
 let mainWindow;
 let chatWindows = []; // 분리된 채팅 창들
 let ptyProcess;
+let djangoProcess;
+let djangoStarting = false;
 const agentRuntime = new AgentRuntime();
 let llmHealthInterval = null;
 let lastLLMConnected = null;
@@ -65,8 +118,89 @@ function defaultSettings() {
       model: 'facebook/opt-125m',
       numPredict: 1024,
       temperature: 0.1
+    },
+    memory: {
+      enabled: true,
+      autoIngest: true,
+      ragEnabled: true,
+      topK: 6
     }
   };
+}
+
+function getMemoryCfg() {
+  const cfg = (llmSettings && llmSettings.memory) ? llmSettings.memory : (defaultSettings().memory || {});
+  return {
+    enabled: cfg.enabled !== false,
+    autoIngest: cfg.autoIngest !== false,
+    ragEnabled: cfg.ragEnabled !== false,
+    topK: Number(cfg.topK || 6)
+  };
+}
+
+function httpJson(method, url, body, timeoutMs = 2500) {
+  return new Promise((resolve, reject) => {
+    try {
+      const u = new URL(url);
+      const client = u.protocol === 'https:' ? https : http;
+      const data = body ? Buffer.from(JSON.stringify(body), "utf8") : null;
+      const req = client.request(
+        {
+          hostname: u.hostname,
+          port: u.port ? Number(u.port) : (u.protocol === 'https:' ? 443 : 80),
+          path: u.pathname + (u.search || ""),
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+            ...(data ? { "Content-Length": data.length } : {})
+          }
+        },
+        (res) => {
+          let raw = "";
+          res.on("data", (c) => (raw += c));
+          res.on("end", () => {
+            try {
+              const parsed = raw ? JSON.parse(raw) : {};
+              resolve({ status: res.statusCode, data: parsed });
+            } catch (_) {
+              resolve({ status: res.statusCode, data: { raw } });
+            }
+          });
+        }
+      );
+      req.on("error", reject);
+      req.setTimeout(timeoutMs, () => { try { req.destroy(); } catch (_) {} reject(new Error("timeout")); });
+      if (data) req.write(data);
+      req.end();
+    } catch (e) {
+      reject(e);
+    }
+  });
+}
+
+async function memoryUpsert(items) {
+  try {
+    const cfg = getMemoryCfg();
+    if (!cfg.enabled || !cfg.autoIngest) return;
+    const url = DJANGO_API_URL + '/api/memory/upsert/';
+    await httpJson("POST", url, { items }, 2500);
+  } catch (e) {
+    try { log.warn("[memory] upsert failed", { message: e && e.message ? e.message : String(e) }); } catch (_) {}
+  }
+}
+
+async function memorySearch(query, topK) {
+  try {
+    const cfg = getMemoryCfg();
+    if (!cfg.enabled || !cfg.ragEnabled) return [];
+    const url = DJANGO_API_URL + '/api/memory/search/';
+    const res = await httpJson("POST", url, { query, top_k: topK || cfg.topK }, 2500);
+    const results = res && res.data ? res.data.results : null;
+    return Array.isArray(results) ? results : [];
+  } catch (e) {
+    try { log.warn("[memory] search failed", { message: e && e.message ? e.message : String(e) }); } catch (_) {}
+    return [];
+  }
 }
 
 function loadSettings() {
@@ -128,9 +262,27 @@ function createWindow() {
   mainWindow.loadFile(htmlPath).catch(err => {
     console.error('Failed to load file:', err);
   });
+  // Smoke test: exit automatically to verify renderer load (prevents hangs in CI/local).
+  if (SMOKE_TEST) {
+    const timer = setTimeout(() => {
+      try { log.error('[smoke] timeout waiting for did-finish-load'); } catch (_) {}
+      try { app.exit(10); } catch (_) { process.exit(10); }
+    }, 15000);
 
-  mainWindow.once('ready-to-show', () => {
-    mainWindow.show();
+    mainWindow.webContents.once('did-finish-load', () => {
+      try { clearTimeout(timer); } catch (_) {}
+      try { log.info('[smoke] did-finish-load OK'); } catch (_) {}
+      try { app.exit(0); } catch (_) { process.exit(0); }
+    });
+
+    mainWindow.webContents.once('did-fail-load', () => {
+      try { clearTimeout(timer); } catch (_) {}
+      try { app.exit(2); } catch (_) { process.exit(2); }
+    });
+  }
+
+  mainWindow.once('ready-to-show', () => {
+    if (!SMOKE_TEST) mainWindow.show();
     loadSettings();
     try {
       setupPowerShell();
@@ -523,12 +675,20 @@ function runDeepLearningPulse() {
 
   const taskId = `dl_${Date.now()}`;
   const instruction = `자율 학습 모드: "${randomTopic}"에 대해 웹 검색을 수행하고, 핵심 요약을 [KNOWLEDGE] 카테고리로 deep_learn 도구를 사용하여 학습하세요.`;
+  try {
+    const ts = new Date().toISOString();
+    memoryUpsert([{
+      id: `dl_${taskId}_prompt`,
+      text: String(instruction || ''),
+      metadata: { kind: 'deep_learning', taskId, ts }
+    }]);
+  } catch (_) {}
 
   if (!llmSettings) loadSettings();
 
   const request = {
-    type: 'edit_request', // 에디터 모드로 호출 (Plan 생성 유도)
-    instruction,
+    type: 'edit_request', // 에디터 모드로 호출 (Plan 생성 유도)
+  instruction: augmentedInstruction,
     context: {
       taskId,
       llmSettings,
@@ -537,7 +697,39 @@ function runDeepLearningPulse() {
     }
   };
 
+  // Memory ingest: store user instruction
+  try {
+    const ts = new Date().toISOString();
+    memoryUpsert([{
+      id: `chat_${taskId || Date.now()}_user`,
+      text: String(instruction || ""),
+      metadata: { kind: "user", taskId: taskId || null, ts }
+    }]);
+  } catch (_) {}
   agentRuntime.processRequest(request, (response) => {
+    if (response && response.type === 'done' && response.data && response.data.message) {
+      try {
+        const ts = new Date().toISOString();
+        memoryUpsert([{
+          id: `dl_${taskId}_result`,
+          text: String(response.data.message),
+          metadata: { kind: 'deep_learning', taskId, ts, success: !!response.data.success }
+        }]);
+      } catch (_) {}
+    }
+
+    // Memory ingest: store assistant final output
+    if (response && response.type === 'done' && response.data && response.data.message) {
+      try {
+        const ts = new Date().toISOString();
+        memoryUpsert([{
+          id: `chat_${taskId || Date.now()}_assistant`,
+          text: String(response.data.message),
+          metadata: { kind: 'assistant', taskId: taskId || null, ts, success: !!response.data.success }
+        }]);
+      } catch (_) {}
+    }
+
     // 모든 창에 진행 상황 전송 (UI Visualize)
     broadcastAgentResponse({
       ...response,
@@ -914,7 +1106,10 @@ function setupPowerShell() {
   }
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  createWindow();
+  try { startDjangoServer(); } catch (e) { try { log.error('[django] start on ready failed', e); } catch (_) {} }
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
@@ -934,6 +1129,24 @@ ipcMain.handle('read-directory', async (e, dirPath) => {
 ipcMain.handle('execute-task', async (event, instruction, context) => {
   const taskId = context?.taskId;
   if (!llmSettings) loadSettings();
+  let augmentedInstruction = instruction;
+  try {
+    const cfg = getMemoryCfg();
+    if (cfg.enabled && cfg.ragEnabled) {
+      const q = String(instruction || '');
+      const memories = await memorySearch(q, cfg.topK);
+      if (Array.isArray(memories) && memories.length) {
+        const lines = memories.map((m, i) => {
+          const t = (m && (m.text || m.document || m.content)) ? String(m.text || m.document || m.content) : '';
+          return `(${i + 1}) ${t}`;
+        }).filter(Boolean);
+        if (lines.length) {
+          augmentedInstruction = q + "\n\n[MEMORY]\n" + lines.join("\n");
+        }
+      }
+    }
+  } catch (_) {}
+
   const request = {
     type: 'edit_request',
     instruction,
