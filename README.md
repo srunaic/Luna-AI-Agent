@@ -1,16 +1,19 @@
 # Luna AI Agent
 
-로컬 에이전트 개발환경 (Electron + Django + ChromaDB)
+ AI 에이전트 개발환경 (Electron + Django + ChromaDB)
 
-- 최신 릴리즈: v0.1.39
-
+- 최신 Demo 릴리즈: v0.1.39
+- 
 ## 핵심 기능
 - 메모리/RAG: ChromaDB 저장 + 검색
 - 관리자 UI: http://127.x.x.x.xxxx/api/memory/admin/ui/ <-- 내 관리자 서버에서만 작동가능
 - 로컬 Django 자동 구동: 127.0.0.1:8000
 
-## 링크
-- Releases: https://github.com/srunaic/Luna-AI-Agent/releases
+## Demo version
+- Releases: https://github.com/srunaic/Luna-AI-Agent/releases 참고
+
+## Demo version
+-정식 버전 개발 중
 
 ## 개발 과정 이슈
 - 인코딩(UTF-8) 문제
