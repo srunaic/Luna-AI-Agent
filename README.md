@@ -3,7 +3,7 @@
  AI 에이전트 개발환경 (Electron + Django + ChromaDB)
 
 - 최신 Demo 릴리즈: v0.1.39
-- 
+  
 ## 핵심 기능
 - 메모리/RAG: ChromaDB 저장 + 검색
 - 관리자 UI: http://127.x.x.x.xxxx/api/memory/admin/ui/ <-- 내 관리자 서버에서만 작동가능
