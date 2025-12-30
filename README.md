@@ -12,8 +12,8 @@
 ## Demo version
 - Releases: https://github.com/srunaic/Luna-AI-Agent/releases 참고
 
-## Demo version
--정식 버전 개발 중
+## 정식 version
+- AI Agent SD 캐릭터 음성인식 개발 중
 
 ## 개발 과정 이슈
 - 인코딩(UTF-8) 문제
