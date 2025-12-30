@@ -15,7 +15,8 @@
 ## 정식 version
 - AI Agent SD 캐릭터 음성인식 개발 중
 
-##데모버전 실행 시 주의 사항
+## Demo 버전 실행 시 주의사항
+
 Ollama 기반 LLM 만 현재 제공 하기 때문에 llm Ollama download 필수 실행 시 terminal 에 ollama serve 서버 실행 부탁드립니다.
 
 ## 개발 과정 이슈
