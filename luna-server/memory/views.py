@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .admin_auth import require_admin
+from .client_auth import require_client
 from .chroma_client import get_collection
 from .embeddings import hashing_embedding
 from .serializers import (
@@ -21,6 +22,7 @@ from .serializers import (
 @method_decorator(csrf_exempt, name="dispatch")
 class MemoryUpsertView(APIView):
     def post(self, request):
+        require_client(request)
         serializer = MemoryUpsertSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -46,6 +48,7 @@ class MemoryUpsertView(APIView):
 @method_decorator(csrf_exempt, name="dispatch")
 class MemorySearchView(APIView):
     def post(self, request):
+        require_client(request)
         serializer = MemorySearchSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -133,3 +136,4 @@ class MemoryAdminDeleteView(APIView):
         col = get_collection()
         col.delete(ids=ids)
         return Response({"deleted": ids}, status=status.HTTP_200_OK)
+

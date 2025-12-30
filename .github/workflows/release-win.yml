@@ -19,7 +19,10 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "18"
+          # Admin build: upload to a Draft release (only collaborators can see/download)
+          draft: ${{ contains(github.ref_name, '-admin') }}
+          # Demo build: public prerelease
+          prerelease: ${{ contains(github.ref_name, '-demo') }}          node-version: "18"
           cache: "npm"
           cache-dependency-path: |
             package-lock.json
@@ -44,7 +47,11 @@ jobs:
       - name: Upload artifacts to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
+          # Admin build: upload to a Draft release (only collaborators can see/download)
+          draft: ${{ contains(github.ref_name, '-admin') }}
+          # Demo build: public prerelease
+          prerelease: ${{ contains(github.ref_name, '-demo') }}          files: |
             dist-electron/*.exe
             dist-electron/*.blockmap
           fail_on_unmatched_files: true
+

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Menu, dialog, clipboard } = require('electron');
+﻿const { app, BrowserWindow, ipcMain, Menu, dialog, clipboard } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn, execSync } = require('child_process');
@@ -31,6 +31,15 @@ if (process.platform === 'win32') {
 }
 
 const DJANGO_API_URL = process.env.LUNA_SERVER_URL || 'http://127.0.0.1:8000';
+// A-option (token based): demo builds ship without token and must not access protected APIs.
+function getClientToken() {
+  return String(process.env.LUNA_CLIENT_TOKEN || '').trim();
+}
+
+function getClientAuthHeaders() {
+  const t = getClientToken();
+  return t ? { 'X-Luna-Client-Token': t } : {};
+}
 
 const EXTENSIONS_PATH = path.join(app.getPath('userData'), 'extensions');
 if (!fs.existsSync(EXTENSIONS_PATH)) {
@@ -59,10 +68,10 @@ ipcMain.handle('get-installed-extensions', async () => {
 
 
 
-// 관리자 권한 체크 함수
+// 愿由ъ옄 沅뚰븳 泥댄겕 ?⑥닔
 function isAdmin() {
   try {
-    // Windows에서 관리자 권한이 필요한 명령어를 실행해 확인
+    // Windows?먯꽌 愿由ъ옄 沅뚰븳???꾩슂??紐낅졊?대? ?ㅽ뻾???뺤씤
     execSync('net session', { stdio: 'ignore' });
     return true;
   } catch (e) {
@@ -71,7 +80,7 @@ function isAdmin() {
 }
 
 let mainWindow;
-let chatWindows = []; // 분리된 채팅 창들
+let chatWindows = []; // 遺꾨━??梨꾪똿 李쎈뱾
 let ptyProcess;
 let djangoProcess;
 let djangoStarting = false;
@@ -118,7 +127,7 @@ function defaultSettings() {
       model: 'facebook/opt-125m',
       numPredict: 1024,
       temperature: 0.1
-    },
+    },
     memory: {
       enabled: true,
       autoIngest: true,
@@ -138,7 +147,7 @@ function getMemoryCfg() {
   };
 }
 
-function httpJson(method, url, body, timeoutMs = 2500) {
+function httpJson(method, url, body, timeoutMs = 2500, extraHeaders = null) {
   return new Promise((resolve, reject) => {
     try {
       const u = new URL(url);
@@ -152,7 +161,8 @@ function httpJson(method, url, body, timeoutMs = 2500) {
           method,
           headers: {
             'Content-Type': 'application/json',
-            ...(data ? { "Content-Length": data.length } : {})
+            ...(data ? { "Content-Length": data.length } : {}),
+            ...(extraHeaders || {})
           }
         },
         (res) => {
@@ -182,8 +192,9 @@ async function memoryUpsert(items) {
   try {
     const cfg = getMemoryCfg();
     if (!cfg.enabled || !cfg.autoIngest) return;
+    if (!getClientToken()) return;
     const url = DJANGO_API_URL + '/api/memory/upsert/';
-    await httpJson("POST", url, { items }, 2500);
+    await httpJson("POST", url, { items }, 2500, getClientAuthHeaders());
   } catch (e) {
     try { log.warn("[memory] upsert failed", { message: e && e.message ? e.message : String(e) }); } catch (_) {}
   }
@@ -193,8 +204,9 @@ async function memorySearch(query, topK) {
   try {
     const cfg = getMemoryCfg();
     if (!cfg.enabled || !cfg.ragEnabled) return [];
+    if (!getClientToken()) return [];
     const url = DJANGO_API_URL + '/api/memory/search/';
-    const res = await httpJson("POST", url, { query, top_k: topK || cfg.topK }, 2500);
+    const res = await httpJson("POST", url, { query, top_k: topK || cfg.topK }, 2500, getClientAuthHeaders());
     const results = res && res.data ? res.data.results : null;
     return Array.isArray(results) ? results : [];
   } catch (e) {
@@ -234,14 +246,16 @@ function saveSettings(next) {
 }
 
 function createWindow() {
-  // 관리자 권한이 아니면 경고 메시지를 띄우고 종료
-  if (!isAdmin()) {
-    dialog.showErrorBox(
-      '권한 부족',
-      'Luna AI Agent는 관리자 권한으로 실행되어야 합니다. 프로그램을 우클릭하여 "관리자 권한으로 실행"을 선택해 주세요.'
-    );
-    app.quit();
-    return;
+  // Demo/admin separation (A-option): do NOT force admin just to launch.
+  // Full features are enforced by server-side tokens (LUNA_CLIENT_TOKEN / LUNA_ADMIN_TOKEN).
+  if (app.isPackaged && !isAdmin()) {
+    try {
+      dialog.showMessageBoxSync({
+        type: 'warning',
+        title: 'Limited Mode',
+        message: 'Running without Administrator. Some system-level features may be unavailable.'
+      });
+    } catch (_) { }
   }
 
   mainWindow = new BrowserWindow({
@@ -281,7 +295,7 @@ function createWindow() {
     });
   }
 
-  mainWindow.once('ready-to-show', () => {
+  mainWindow.once('ready-to-show', () => {
     if (!SMOKE_TEST) mainWindow.show();
     loadSettings();
     try {
@@ -298,7 +312,7 @@ function createWindow() {
   });
 
   mainWindow.on('closed', () => {
-    // 메인 창 닫히면 채팅 창들도 닫음
+    // 硫붿씤 李??ロ엳硫?梨꾪똿 李쎈뱾???レ쓬
     for (const w of chatWindows) {
       try { w.close(); } catch (_) { }
     }
@@ -361,7 +375,7 @@ function checkVLLMOnce(timeoutMs = 700) {
       {
         hostname: host,
         port: Number(cfg.port || 8000),
-        path: '/v1/models', // vLLM 포트 생존 확인
+        path: '/v1/models', // vLLM ?ы듃 ?앹〈 ?뺤씤
         method: 'GET'
       },
       (res) => {
@@ -546,8 +560,8 @@ function setupAutoUpdater() {
 
     autoUpdater.autoDownload = true;
     autoUpdater.autoInstallOnAppQuit = true;
-    autoUpdater.allowDowngrade = true; // 동일 버전이나 하위 버전으로의 "업데이트" 허용
-    autoUpdater.allowPrerelease = true; // 프리릴리즈 버전 허용
+    autoUpdater.allowDowngrade = true; // ?숈씪 踰꾩쟾?대굹 ?섏쐞 踰꾩쟾?쇰줈??"?낅뜲?댄듃" ?덉슜
+    autoUpdater.allowPrerelease = true; // ?꾨━由대━利?踰꾩쟾 ?덉슜
 
     autoUpdater.on('checking-for-update', () => {
       lastUpdateCheckedAt = new Date().toISOString();
@@ -606,7 +620,7 @@ function stopAutoUpdater() {
   }
 }
 
-// 채팅 분리 창 생성 함수
+// 梨꾪똿 遺꾨━ 李??앹꽦 ?⑥닔
 function createChatWindow() {
   const sessionId = `chat_${Date.now()}_${Math.random().toString(16).slice(2)}`;
   const win = new BrowserWindow({
@@ -614,7 +628,7 @@ function createChatWindow() {
     height: 800,
     title: 'New chat',
     icon: path.join(__dirname, '../assets/Luna.jpg'),
-    autoHideMenuBar: true, // 메뉴 바 숨김
+    autoHideMenuBar: true, // 硫붾돱 諛??④?
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -622,7 +636,7 @@ function createChatWindow() {
     }
   });
 
-  win.setMenuBarVisibility(false); // 메뉴 바 완전히 제거
+  win.setMenuBarVisibility(false); // 硫붾돱 諛??꾩쟾???쒓굅
 
   win.loadFile(path.join(__dirname, 'chat.html'), { query: { session: sessionId } });
 
@@ -646,7 +660,7 @@ ipcMain.on('popout-chat', () => {
   createChatWindow();
 });
 
-// --- 자율 학습 (Deep Learning) 엔진 ---
+// --- ?먯쑉 ?숈뒿 (Deep Learning) ?붿쭊 ---
 let isDeepLearningActive = false;
 let deepLearningTimer = null;
 
@@ -668,13 +682,13 @@ function broadcastAgentResponse(response) {
 function runDeepLearningPulse() {
   if (!isDeepLearningActive) return;
 
-  console.log("🧠 [LUNA DEEP LEARNING] 자율 학습 펄스 시작...");
+  console.log("?쭬 [LUNA DEEP LEARNING] ?먯쑉 ?숈뒿 ?꾩뒪 ?쒖옉...");
 
-  const topics = ["TypeScript의 고급 타입 시스템", "Electron 보안 베스트 프렉티스", "Rust 언어의 메모리 안전성", "AI 에이전트의 자율적 사고 모델", "현대적 CSS 애니메이션 기법"];
+  const topics = ["TypeScript", "Electron", "Rust", "AI", "CSS"];
   const randomTopic = topics[Math.floor(Math.random() * topics.length)];
 
   const taskId = `dl_${Date.now()}`;
-  const instruction = `자율 학습 모드: "${randomTopic}"에 대해 웹 검색을 수행하고, 핵심 요약을 [KNOWLEDGE] 카테고리로 deep_learn 도구를 사용하여 학습하세요.`;
+  const instruction = `?먯쑉 ?숈뒿 紐⑤뱶: "${randomTopic}"???????寃?됱쓣 ?섑뻾?섍퀬, ?듭떖 ?붿빟??[KNOWLEDGE] 移댄뀒怨좊━濡?deep_learn ?꾧뎄瑜??ъ슜?섏뿬 ?숈뒿?섏꽭??`;
   try {
     const ts = new Date().toISOString();
     memoryUpsert([{
@@ -687,7 +701,7 @@ function runDeepLearningPulse() {
   if (!llmSettings) loadSettings();
 
   const request = {
-    type: 'edit_request', // 에디터 모드로 호출 (Plan 생성 유도)
+    type: 'edit_request', // ?먮뵒??紐⑤뱶濡??몄텧 (Plan ?앹꽦 ?좊룄)
   instruction,
     context: {
       taskId,
@@ -730,17 +744,17 @@ function runDeepLearningPulse() {
       } catch (_) {}
     }
 
-    // 모든 창에 진행 상황 전송 (UI Visualize)
+    // 紐⑤뱺 李쎌뿉 吏꾪뻾 ?곹솴 ?꾩넚 (UI Visualize)
     broadcastAgentResponse({
       ...response,
       data: { ...(response.data || {}), taskId }
     });
 
     if (response.type === 'action') {
-      console.log(`🧠 [DL ACTION] ${response.data?.tool}: ${response.data?.input}`);
+      console.log(`?쭬 [DL ACTION] ${response.data?.tool}: ${response.data?.input}`);
     }
     if (response.type === 'done') {
-      console.log("🧠 [LUNA DEEP LEARNING] 학습 사이클 완료.");
+      console.log("?쭬 [LUNA DEEP LEARNING] ?숈뒿 ?ъ씠???꾨즺.");
       if (isDeepLearningActive) {
         deepLearningTimer = setTimeout(runDeepLearningPulse, 5 * 60 * 1000);
       }
@@ -749,9 +763,13 @@ function runDeepLearningPulse() {
 }
 
 ipcMain.on('start_deep_learning', () => {
+  if (!getClientToken()) {
+    try { log.warn('[deep-learning] blocked (no client token)'); } catch (_) { }
+    return;
+  }
   if (isDeepLearningActive) return;
   isDeepLearningActive = true;
-  console.log("🚀 [LUNA] 자율 학습 모드 활성화!");
+  console.log("?? [LUNA] ?먯쑉 ?숈뒿 紐⑤뱶 ?쒖꽦??");
   runDeepLearningPulse();
   broadcastDeepLearningStatus();
 });
@@ -759,7 +777,7 @@ ipcMain.on('start_deep_learning', () => {
 ipcMain.on('stop_deep_learning', () => {
   isDeepLearningActive = false;
   if (deepLearningTimer) clearTimeout(deepLearningTimer);
-  console.log("🛑 [LUNA] 자율 학습 모드 중단.");
+  console.log("?썞 [LUNA] ?먯쑉 ?숈뒿 紐⑤뱶 以묐떒.");
   broadcastDeepLearningStatus();
 });
 
@@ -772,7 +790,7 @@ ipcMain.on('new-chat-window', () => {
 });
 
 // --- Extensions & Marketplace ---
-const MARKET_REGISTRY_URL = 'https://raw.githubusercontent.com/srunaic/Luna-AI-Agent/main/market.json'; // 임시로 본체 저장소 사용
+const MARKET_REGISTRY_URL = 'https://raw.githubusercontent.com/srunaic/Luna-AI-Agent/main/market.json'; // ?꾩떆濡?蹂몄껜 ??μ냼 ?ъ슜
 
 ipcMain.handle('fetch-marketplace', async () => {
   return new Promise((resolve) => {
@@ -783,13 +801,13 @@ ipcMain.handle('fetch-marketplace', async () => {
         try {
           resolve(JSON.parse(data));
         } catch (e) {
-          // 파일이 없으면 샘플 데이터 반환
+          // ?뚯씪???놁쑝硫??섑뵆 ?곗씠??諛섑솚
           resolve([
             {
               id: 'luna-sample-plugin',
               name: 'Sample Plugin',
               version: '1.0.1',
-              description: 'GitHub API 기반 서버리스 플러그인 예시입니다.',
+              description: 'GitHub API 湲곕컲 ?쒕쾭由ъ뒪 ?뚮윭洹몄씤 ?덉떆?낅땲??',
               author: 'Luna Dev',
               downloadUrl: 'https://github.com/srunaic/Luna-AI-Agent/archive/refs/heads/main.zip'
             }
@@ -810,27 +828,34 @@ ipcMain.handle('install-extension', async (event, { url, id }) => {
       fs.mkdirSync(targetPath, { recursive: true });
     }
 
-    // 1. Download ZIP
+    // 1. Download ZIP (follow redirects)
     await new Promise((resolve, reject) => {
       const file = fs.createWriteStream(zipPath);
-      https.get(url, (res) => {
-        if (res.statusCode === 302 || res.statusCode === 301) { // 리다이렉트 대응
-          https.get(res.headers.location, (res2) => {
-            res2.pipe(file);
-            file.on('finish', () => { file.close(); resolve(); });
-          });
-        } else {
-          res.pipe(file);
-          file.on('finish', () => { file.close(); resolve(); });
-        }
-      }).on('error', reject);
+
+      const doGet = (u) => {
+        https
+          .get(u, (res) => {
+            if (res.statusCode === 302 || res.statusCode === 301) {
+              const loc = res.headers.location;
+              if (!loc) return reject(new Error('Redirect without Location header'));
+              res.resume();
+              return doGet(loc);
+            }
+
+            res.pipe(file);
+            file.on('finish', () => file.close(resolve));
+          })
+          .on('error', reject);
+      };
+
+      doGet(url);
     });
 
     // 2. Unzip using PowerShell (Serverless - No extra npm deps)
     const unzipCmd = `Expand-Archive -Path "${zipPath}" -DestinationPath "${targetPath}" -Force`;
     execSync(`powershell -Command "${unzipCmd}"`);
 
-    // 3. 만약 압축을 풀었는데 안에 폴더가 하나 더 있다면 (GitHub ZIP 특성)
+    // 3. 留뚯빟 ?뺤텞????덈뒗???덉뿉 ?대뜑媛 ?섎굹 ???덈떎硫?(GitHub ZIP ?뱀꽦)
     const content = fs.readdirSync(targetPath);
     if (content.length === 1 && fs.lstatSync(path.join(targetPath, content[0])).isDirectory()) {
       const subDir = path.join(targetPath, content[0]);
@@ -1157,13 +1182,13 @@ ipcMain.handle('execute-task', async (event, instruction, context) => {
   };
 
   agentRuntime.processRequest(request, (response) => {
-    // [DEBUG] 루나의 행동을 메인 콘솔에 대대적으로 출력
+    // [DEBUG] 猷⑤굹???됰룞??硫붿씤 肄섏넄?????곸쑝濡?異쒕젰
     if (response.type === 'action') {
       console.log("\n" + "=".repeat(50));
-      console.log("🔥🔥🔥 [LUNA ACTION] 도구 실행 감지");
-      console.log("🛠️  [TOOL]:", response.data?.tool);
-      console.log("📥  [INPUT]:", response.data?.input);
-      console.log("📤  [RESULT]:", response.data?.result?.substring(0, 500) + (response.data?.result?.length > 500 ? "..." : ""));
+      console.log("?뵦?뵦?뵦 [LUNA ACTION] ?꾧뎄 ?ㅽ뻾 媛먯?");
+      console.log("?썱截? [TOOL]:", response.data?.tool);
+      console.log("?뱿  [INPUT]:", response.data?.input);
+      console.log("?뱾  [RESULT]:", response.data?.result?.substring(0, 500) + (response.data?.result?.length > 500 ? "..." : ""));
       console.log("=".repeat(50) + "\n");
     }
 
@@ -1192,8 +1217,7 @@ ipcMain.on('update-editor-state', (event, state) => {
 
 ipcMain.handle('get-editor-state', () => globalEditorState);
 
-// 클립보드 관련 IPC 핸들러
-ipcMain.on('clipboard-write', (event, text) => {
+ipcMain.on('clipboard-write', (_event, text) => {
   clipboard.writeText(text);
 });
 
@@ -1344,4 +1368,10 @@ function stopDjangoServer() {
   }
   djangoStarting = false;
 }
+
+
+
+
+
+
 

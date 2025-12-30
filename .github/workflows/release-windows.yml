@@ -1,11 +1,7 @@
-name: Release (Windows)
+﻿name: Release (Windows)
 
 on:
-  workflow_dispatch:
-  push:
-    tags:
-      - "v*.*.*"
-
+  workflow_dispatch:\n  # Disabled to avoid duplicate releases; use release-win.yml only.\n
 permissions:
   contents: write
 
@@ -32,5 +28,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run release-win
+
 
 
