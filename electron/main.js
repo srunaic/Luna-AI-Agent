@@ -688,7 +688,7 @@ function runDeepLearningPulse() {
 
   const request = {
     type: 'edit_request', // 에디터 모드로 호출 (Plan 생성 유도)
-  instruction: augmentedInstruction,
+  instruction,
     context: {
       taskId,
       llmSettings,
