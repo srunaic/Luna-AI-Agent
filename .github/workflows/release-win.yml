@@ -21,8 +21,15 @@ jobs:
         with:
           node-version: "18"
           cache: "npm"
+          cache-dependency-path: |
+            package-lock.json
+            webview-ui/package-lock.json
 
-      - name: Install deps
+      - name: Install root deps
+        run: npm ci
+
+      - name: Install webview deps
+        working-directory: webview-ui
         run: npm ci
 
       - name: Build webview
