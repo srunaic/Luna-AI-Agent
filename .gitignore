@@ -1,4 +1,4 @@
-node_modules/
+﻿node_modules/
 out/
 dist-electron/
 dist-temp/
@@ -7,4 +7,12 @@ Luna AI Agent-win32-x64/
 .DS_Store
 Thumbs.db
 
-
+# Python/Django artifacts (repo also contains luna-server)
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+luna-server/db.sqlite3
+luna-server/server_log.txt
+luna-server/media/
+luna-server/chroma_db/

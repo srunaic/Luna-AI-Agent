@@ -1,0 +1,13 @@
+﻿__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Django runtime
+db.sqlite3
+server_log.txt
+media/
+
+# Chroma persistent storage (default)
+chroma_db/
