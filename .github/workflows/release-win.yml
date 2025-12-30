@@ -19,16 +19,10 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          # Admin build: upload to a Draft release (only collaborators can see/download)
-          draft: ${{ contains(github.ref_name, '-admin') }}
-          # Demo build: public prerelease
-          prerelease: ${{ contains(github.ref_name, '-demo') }}          node-version: "18"
+          node-version: "18"
           cache: "npm"
-          cache-dependency-path: |
-            package-lock.json
-            webview-ui/package-lock.json
 
-      - name: Install root deps
+      - name: Install deps
         run: npm ci
 
       - name: Install webview deps
@@ -50,8 +44,8 @@ jobs:
           # Admin build: upload to a Draft release (only collaborators can see/download)
           draft: ${{ contains(github.ref_name, '-admin') }}
           # Demo build: public prerelease
-          prerelease: ${{ contains(github.ref_name, '-demo') }}          files: |
+          prerelease: ${{ contains(github.ref_name, '-demo') }}
+          files: |
             dist-electron/*.exe
             dist-electron/*.blockmap
           fail_on_unmatched_files: true
-
