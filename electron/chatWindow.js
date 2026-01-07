@@ -59,7 +59,7 @@
     if (response.type === 'done') {
       return {
         type: 'task_complete',
-        data: { taskId, success: !!response.data?.success, message: response.data?.message || '' }
+        data: { taskId, success: !!response.data?.success, message: response.data?.message || '', rl: response.data?.rl || null }
       };
     }
     if (response.type === 'action') {

@@ -22,7 +22,7 @@ class AgentRuntime {
                 onResponse({ type: 'status', data: { state: 'thinking', message: '', isPartial: true, taskId: context.taskId } });
                 let fullText = "";
                 if (model === 'ollama' || model === 'luna-soul') {
-                    fullText = await this.callLunaCore(instruction, context, onResponse, true); // directMode: true
+                    fullText = await this.callLunaCore(instruction, context, onResponse, false); // directMode: false (keep system prompt)
                 } else if (model === 'vllm') {
                     fullText = await this.callVLLM(instruction, context, onResponse, true);
                 } else if (model === 'openai') {
@@ -209,7 +209,7 @@ class AgentRuntime {
 
 
     async callLunaCore(instruction, context, onResponse, directMode = false) {
-        const prompt = directMode ? instruction : this.buildPrompt(instruction, context);
+        const prompt = this.buildPrompt(instruction, context);
 
         return new Promise((resolve, reject) => {
             const cfg = context.llmSettings?.ollama || {};
@@ -326,7 +326,7 @@ class AgentRuntime {
     }
 
     async callVLLM(instruction, context, onResponse, directMode = false) {
-        const prompt = directMode ? instruction : this.buildPrompt(instruction, context);
+        const prompt = this.buildPrompt(instruction, context);
 
         return new Promise((resolve, reject) => {
             const cfg = context.llmSettings?.vllm || {};

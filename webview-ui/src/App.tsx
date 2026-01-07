@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { ChatInput } from './components/ChatInput';
 import { PlanView } from './components/PlanView';
 import { ChatHistory, ChatMessage } from './components/ChatHistory';
 import { ActionLog } from './components/ActionLog';
 import { StatusBar } from './components/StatusBar';
+import { LunaDisplay } from './components/LunaDisplay';
 import { WebviewBridge } from './types/bridge';
 import { EditorContext, PlanStep, AgentState, ExtensionToWebviewMessage } from './types/protocol';
 import './App.css';
@@ -68,6 +69,8 @@ function App() {
   });
 
   const [bridge] = useState(() => new WebviewBridge());
+  const [lunaDisplayOpen, setLunaDisplayOpen] = useState(false);
+  const [speakText, setSpeakText] = useState<string>('');
 
   useEffect(() => {
     // Load persisted chat history (per session)
@@ -87,7 +90,7 @@ function App() {
     });
 
     // Default model auto-connect on startup
-    bridge.setModel('ollama');
+    bridge.setModel('luna-soul');
 
     // Load initial Deep Learning status
     bridge.getDeepLearningStatus();
@@ -139,7 +142,7 @@ function App() {
                       role: 'assistant',
                       content: message.data.message,
                       ts: Date.now()
-                    }
+                }
                   ]
                 };
               }
@@ -156,6 +159,9 @@ function App() {
           setStore((prev: AgentStore) => {
             // Remove the temporary stream message and add the final one
             const filtered = prev.chatHistory.filter((m: ChatMessage) => m.id !== `stream_${message.data.taskId}`);
+            const finalText = String(message.data?.message || '');
+            // Trigger avatar ?쐓peak??(visual-only) when Luna finishes a response
+            if (finalText) setSpeakText(finalText);
             return {
               ...prev,
               currentTaskId: null,
@@ -165,8 +171,9 @@ function App() {
                 {
                   id: `assistant_${Date.now()}`,
                   role: 'assistant',
-                  content: String(message.data?.message || ''),
-                  ts: Date.now()
+                  content: finalText,
+                  ts: Date.now(),
+                  meta: { taskId: String(message.data.taskId || ''), rlAction: message.data?.rl?.action ? String(message.data.rl.action) : undefined }
                 }
               ]
             };
@@ -274,11 +281,79 @@ function App() {
     }
   };
 
+  const handleFeedback = (taskId: string, reward: number, label: string) => {
+    try {
+      bridge.sendRLFeedback(taskId, reward, label);
+    } catch (e) {
+      console.error('RL feedback failed:', e);
+    }
+  };
+
+  const handleClearChat = () => {
+    setStore((prev: AgentStore) => ({
+      ...prev,
+      chatHistory: [],
+      plan: [],
+      actionLogs: [],
+      currentTaskId: null,
+      status: 'idle'
+    }));
+    try {
+      localStorage.removeItem(chatStorageKey);
+    } catch (_) { }
+  };
+
   return (
     <div className="app">
+      <div className="app-header">
+        <div className="header-left">
+          <div className="header-avatar">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#007acc" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"></path>
+              <path d="M12 6v6l4 2"></path>
+            </svg>
+          </div>
+          <span className="header-title">Luna chat</span>
+        </div>
+        <div className="header-right">
+          <button
+            className="header-action-btn"
+            onClick={() => setLunaDisplayOpen((v) => !v)}
+            title={lunaDisplayOpen ? 'Luna Display ?リ린' : 'Luna Display ?닿린'}
+            aria-pressed={lunaDisplayOpen}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 3a9 9 0 1 0 9 9"></path>
+              <path d="M12 3a9 9 0 0 0-9 9"></path>
+              <path d="M7 14s1.5 2 5 2 5-2 5-2"></path>
+              <path d="M9 9h.01"></path>
+              <path d="M15 9h.01"></path>
+            </svg>
+          </button>
+          <button className="header-action-btn" id="new-terminal-toggle" onClick={() => bridge.executeTask("Open a new terminal", { model: "luna-soul" })} title="Open New Terminal">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect>
+              <polyline points="9 22 9 12 15 12 15 22"></polyline>
+            </svg>
+          </button>
+          <button className="header-action-btn" onClick={handleClearChat} title="Clear Chat history">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              <line x1="10" y1="11" x2="10" y2="17"></line>
+              <line x1="14" y1="11" x2="14" y2="17"></line>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <LunaDisplay
+        open={lunaDisplayOpen}
+        onClose={() => setLunaDisplayOpen(false)}
+        speakText={speakText}
+      />
       <div className="app-content">
         <div className="chat-messages">
-          <ChatHistory messages={store.chatHistory} />
+          <ChatHistory messages={store.chatHistory} onFeedback={handleFeedback} />
           <PlanView steps={store.plan} />
           <ActionLog entries={store.actionLogs} />
         </div>
@@ -295,6 +370,7 @@ function App() {
           <ChatInput
             onExecute={handleExecuteTask}
             onCancel={handleCancelTask}
+            onClear={handleClearChat}
             isExecuting={['thinking', 'planning', 'executing', 'editing', 'running'].includes(store.status)}
             editorContext={store.editorContext}
             onModelChange={handleModelChange}
@@ -306,3 +382,7 @@ function App() {
 }
 
 export default App;
+
+
+
+

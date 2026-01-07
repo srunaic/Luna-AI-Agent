@@ -1,0 +1,21 @@
+{
+  "name": "Example Plugin",
+  "version": "0.0.1",
+  "description": "Sample plugin that does nothing except stay alive and log periodically.",
+  "entry": "index.js"
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

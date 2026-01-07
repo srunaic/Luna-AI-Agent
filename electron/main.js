@@ -31,6 +31,179 @@ if (process.platform === 'win32') {
 }
 
 const DJANGO_API_URL = process.env.LUNA_SERVER_URL || 'http://127.0.0.1:8000';
+// --- RL Controller (Q-learning) ---
+const RL_HOST = '127.0.0.1';
+const RL_PORT = Number(process.env.LUNA_RL_PORT || 8765);
+const RL_URL = http://:;
+let rlProcess;
+let rlStarting = false;
+const rlTurnByTaskId = new Map(); // taskId -> { state, action, actions }
+
+function rlHttpJson(method, url, body, timeoutMs = 1200) {
+  return new Promise((resolve, reject) => {
+    try {
+      const data = body ? JSON.stringify(body) : '';
+      const u = new URL(url);
+      const options = {
+        hostname: u.hostname,
+        port: Number(u.port || 80),
+        path: u.pathname + (u.search || ''),
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(data, 'utf8')
+        }
+      };
+      const req = http.request(options, (res) => {
+        let buf = '';
+        res.on('data', (c) => (buf += c));
+        res.on('end', () => {
+          try { resolve(JSON.parse(buf || '{}')); } catch (_) { resolve({}); }
+        });
+      });
+      req.on('error', reject);
+      req.setTimeout(timeoutMs, () => {
+        try { req.destroy(new Error('timeout')); } catch (_) { }
+        reject(new Error('timeout'));
+      });
+      if (data) req.write(data);
+      req.end();
+    } catch (e) {
+      reject(e);
+    }
+  });
+}
+
+async function waitForRLReady(timeoutMs = 8000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const res = await rlHttpJson('GET', ${RL_URL}/health, null, 800);
+      if (res && res.ok) return true;
+    } catch (_) { }
+    await new Promise(r => setTimeout(r, 250));
+  }
+  return false;
+}
+
+function startRLServer() {
+  try {
+    if (rlProcess || rlStarting) return;
+    const rlPath = app.isPackaged ? path.join(process.resourcesPath, 'luna-rl') : path.join(__dirname, '../luna-rl');
+    const entry = path.join(rlPath, 'rl_server.py');
+    if (!fs.existsSync(entry)) {
+      try { log.warn('[rl] rl_server.py missing; not starting', { entry }); } catch (_) { }
+      return;
+    }
+
+    rlStarting = true;
+    const py = resolvePythonCommand();
+    const dataDir = path.join(app.getPath('userData'), 'rl');
+    const args = [...(py.argsPrefix || []), entry, '--host', RL_HOST, '--port', String(RL_PORT), '--data-dir', dataDir];
+
+    rlProcess = spawn(py.cmd, args, { cwd: rlPath, shell: true, detached: false });
+    rlProcess.on('error', (e) => { try { log.error('[rl] spawn error', e); } catch (_) { } });
+    rlProcess.stdout?.on('data', (d) => { try { log.info('[rl]', String(d).trim()); } catch (_) { } });
+    rlProcess.stderr?.on('data', (d) => { try { log.warn('[rl]', String(d).trim()); } catch (_) { } });
+    rlProcess.on('exit', (code) => {
+      try { log.warn('[rl] exited', { code }); } catch (_) { }
+      rlProcess = null;
+      rlStarting = false;
+    });
+
+    setTimeout(async () => {
+      const ok = await waitForRLReady(8000);
+      rlStarting = false;
+      try {
+        if (ok) log.info('[rl] ready', { url: RL_URL });
+        else log.warn('[rl] not ready', { url: RL_URL });
+      } catch (_) { }
+    }, 250);
+  } catch (e) {
+    rlStarting = false;
+    try { log.error('[rl] start failed', e); } catch (_) { }
+  }
+}
+
+function stopRLServer() {
+  if (rlProcess) {
+    if (process.platform === 'win32') {
+      try { execSync(	askkill /pid  /f /t); } catch (_) { }
+    } else {
+      try { rlProcess.kill(); } catch (_) { }
+    }
+    rlProcess = null;
+  }
+  rlStarting = false;
+}
+
+function buildRLState(instruction, context) {
+  const text = String(instruction || '');
+  const hasKorean = /[\\uAC00-\\uD7A3]/.test(text);
+  const len = text.length;
+  const lenBucket = len < 40 ? 'short' : (len < 160 ? 'mid' : 'long');
+  const isCode = /`|(\\bconst\\b|\\blet\\b|\\bfunction\\b|\\bclass\\b|\\bimport\\b|\\bexport\\b|\\bdef\\b|\\btraceback\\b|\\bException\\b)/i.test(text);
+  return { lang: hasKorean ? 'ko' : 'en', len: lenBucket, code: isCode ? 1 : 0, model: String(context?.model || '') };
+}
+
+async function rlSelectStrategy(taskId, instruction, context) {
+  const state = buildRLState(instruction, context);
+  // ???ㅼ뼇?섍퀬 ?몃??곸씤 action??r
+  const actions = [
+    // 肄붾뱶 愿??r
+    'korean_explain_code',
+    'korean_debug_help',
+    'korean_write_function',
+    'korean_fix_error',
+    'korean_test_help',
+
+    // ?쇰컲 吏덈Ц/?ㅻ챸
+    'korean_step_by_step',
+    'korean_concise',
+    'korean_detailed_explanation',
+
+    // 媛먯젙/?숆린遺??r
+    'korean_empathy',
+    'korean_motivate',
+    'korean_encourage',
+
+    // ?곹샇?묒슜
+    'ask_more_details',
+    'ask_clarify',
+    'summarize_then_answer',
+
+    // ???ㅽ???r
+    'cheerful_tone',
+    'professional_tone',
+    'patient_tone'
+  ];
+
+  let action = 'korean_step_by_step'; // 湲곕낯媛?r
+
+  try {
+    const res = await rlHttpJson('POST', ${RL_URL}/select_action, { state, actions }, 1200);
+    if (res && res.ok && typeof res.action === 'string') {
+      action = res.action;
+    }
+  } catch (_) {
+    // RL ?ㅽ뙣??湲곕낯媛??ъ슜
+  }
+  rlTurnByTaskId.set(String(taskId || ''), { state, action, actions });
+  return { state, action, actions };
+}
+
+async function rlApplyFeedback(taskId, reward, label) {
+  const key = String(taskId || '');
+  const turn = rlTurnByTaskId.get(key);
+  if (!turn) return { ok: false };
+  try {
+    await rlHttpJson('POST', ${RL_URL}/feedback, { state: turn.state, action: turn.action, reward: Number(reward || 0), done: true, meta: { label: String(label || '') } }, 1200);
+    rlTurnByTaskId.delete(key);
+    return { ok: true };
+  } catch (_) {
+    return { ok: false };
+  }
+}
 // A-option (token based): demo builds ship without token and must not access protected APIs.
 function getClientToken() {
   return String(process.env.LUNA_CLIENT_TOKEN || '').trim();
@@ -701,8 +874,8 @@ function runDeepLearningPulse() {
   if (!llmSettings) loadSettings();
 
   const request = {
-    type: 'edit_request', // ?먮뵒??紐⑤뱶濡??몄텧 (Plan ?앹꽦 ?좊룄)
-  instruction,
+    type: 'edit_request', // edit mode (plan generation)
+    instruction,
     context: {
       taskId,
       llmSettings,
@@ -1133,7 +1306,10 @@ function setupPowerShell() {
 
 app.whenReady().then(() => {
   createWindow();
-  try { startDjangoServer(); } catch (e) { try { log.error('[django] start on ready failed', e); } catch (_) {} }
+  try {
+    startDjangoServer();
+    startRLServer();
+  } catch (e) { try { log.error('[django] start on ready failed', e); } catch (_) {} }
 });
 
 app.on('window-all-closed', () => {
@@ -1172,12 +1348,19 @@ ipcMain.handle('execute-task', async (event, instruction, context) => {
     }
   } catch (_) {}
 
+  // RL strategy selection (best-effort)
+  const rl = await rlSelectStrategy(taskId, augmentedInstruction, context);
+  const baseSys = (llmSettings && llmSettings.systemInstructions) ? String(llmSettings.systemInstructions) : '';
+  const rlSys = "[STRATEGY_CARD]\\n" + String(rl.action || "") + "\\n";
+  const llmSettingsWithRL = { ...(llmSettings || {}), systemInstructions: (baseSys ? (baseSys + '\n\n' + rlSys) : rlSys) };
+
   const request = {
     type: 'edit_request',
-    instruction,
+    instruction: augmentedInstruction,
     context: {
       ...(context || {}),
-      llmSettings
+      llmSettings: llmSettingsWithRL,
+      rl
     }
   };
 
@@ -1193,9 +1376,10 @@ ipcMain.handle('execute-task', async (event, instruction, context) => {
     }
 
     // Ensure taskId is present on all responses for reliable correlation in UI
+    const rlMeta = rlTurnByTaskId.get(String(taskId || '')) || null;
     const enriched = {
       ...response,
-      data: { ...(response.data || {}), taskId }
+      data: { ...(response.data || {}), taskId, rl: rlMeta }
     };
     // Send back to the window that initiated the request
     try {
@@ -1207,6 +1391,17 @@ ipcMain.handle('execute-task', async (event, instruction, context) => {
   });
 
   return { success: true };
+});
+
+
+
+ipcMain.on('rl-feedback', async (_event, payload) => {
+  try {
+    const taskId = payload?.taskId;
+    const reward = payload?.reward;
+    const label = payload?.label;
+    await rlApplyFeedback(taskId, reward, label);
+  } catch (_) { }
 });
 
 ipcMain.handle('cancel-task', async (e, id) => true);
@@ -1368,6 +1563,21 @@ function stopDjangoServer() {
   }
   djangoStarting = false;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

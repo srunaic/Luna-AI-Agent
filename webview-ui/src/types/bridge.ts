@@ -1,4 +1,4 @@
-import { EditorContext, WebviewToExtensionMessage, ExtensionToWebviewMessage } from './protocol';
+﻿import { EditorContext, WebviewToExtensionMessage, ExtensionToWebviewMessage } from './protocol';
 
 // Webview-side bridge for communication with extension
 export class WebviewBridge {
@@ -6,13 +6,13 @@ export class WebviewBridge {
   private messageHandlers: ((message: any) => void)[] = [];
 
   constructor() {
-    // 1) VSCode Webview 환경: acquireVsCodeApi() 사용
+    // 1) VSCode Webview ?섍꼍: acquireVsCodeApi() ?ъ슜
     const acquire = (globalThis as any).acquireVsCodeApi;
     if (typeof acquire === 'function') {
       this.vscode = acquire();
     }
 
-    // 2) Electron iframe 환경: window.parent.postMessage 사용
+    // 2) Electron iframe ?섍꼍: window.parent.postMessage ?ъ슜
     if (!this.vscode && typeof window !== 'undefined' && window.parent && window.parent !== window) {
       this.vscode = {
         postMessage: (msg: any) => window.parent.postMessage(msg, '*'),
@@ -100,9 +100,7 @@ export class WebviewBridge {
         reject(new Error('Task execution timeout'));
       }, 5 * 60 * 1000);
     });
-  }
-
-  public setModel(model: string): void {
+  }  public setModel(model: string): void {
     const message: WebviewToExtensionMessage = {
       type: 'set_model',
       data: { model }
@@ -110,6 +108,13 @@ export class WebviewBridge {
     this.vscode.postMessage(message);
   }
 
+  public sendRLFeedback(taskId: string, reward: number, label: string): void {
+    const message: WebviewToExtensionMessage = {
+      type: 'rl_feedback',
+      data: { taskId, reward, label }
+    };
+    this.vscode.postMessage(message);
+  }
   public cancelTask(taskId: string): void {
     const message: WebviewToExtensionMessage = {
       type: 'cancel_task',
@@ -156,5 +161,7 @@ export class WebviewBridge {
     this.vscode.setState(state);
   }
 }
+
+
 
 

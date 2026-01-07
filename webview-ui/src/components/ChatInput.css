@@ -7,11 +7,38 @@
 .model-selector-container {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
   background: #2d2d30;
   padding: 6px 12px;
   border-radius: 8px;
   border: 1px solid #3e3e42;
+  flex-wrap: nowrap; /* 절대 줄바꿈 되지 않도록 */
+  min-height: 40px;
+}
+
+.clear-button {
+  background: #3e3e42; /* 배경색을 조금 더 밝게 하여 가시성 확보 */
+  color: #efefef;
+  border: 1px solid #555;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.clear-button:hover:not(:disabled) {
+  background: #3e3e42;
+  color: #fff;
+  border-color: #666;
+}
+
+.clear-button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
 }
 
 .model-selector-container label {
@@ -61,7 +88,55 @@
 .input-actions {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   padding-top: 4px;
+}
+
+.voice-button {
+  background: #007acc;
+  color: white;
+  border: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  flex-shrink: 0;
+}
+
+.voice-button:hover:not(:disabled) {
+  background: #008be5;
+  transform: scale(1.1);
+}
+
+.voice-button.recording {
+  background: #ff4d4d;
+  animation: pulse 1.5s infinite;
+  box-shadow: 0 0 10px rgba(255, 77, 77, 0.6);
+}
+
+.voice-button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(255, 77, 77, 0.7);
+  }
+  70% {
+    transform: scale(1.1);
+    box-shadow: 0 0 0 6px rgba(255, 77, 77, 0);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(255, 77, 77, 0);
+  }
 }
 
 .execute-button {

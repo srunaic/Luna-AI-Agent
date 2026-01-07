@@ -1,0 +1,7 @@
+django
+djangorestframework
+django-cors-headers
+chromadb==0.5.23
+requests==2.32.3
+
+

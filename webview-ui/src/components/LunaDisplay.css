@@ -1,0 +1,171 @@
+.luna-display-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-end;
+  z-index: 9999;
+}
+
+.luna-display-panel {
+  width: min(560px, 92vw);
+  height: 100%;
+  background: #1e1e1e;
+  border-left: 1px solid #333333;
+  display: flex;
+  flex-direction: column;
+}
+
+.luna-display-header {
+  height: 44px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #252526;
+  border-bottom: 1px solid #333333;
+  flex: 0 0 auto;
+}
+
+.luna-display-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #cccccc;
+}
+
+.luna-display-close {
+  background: none;
+  border: 1px solid #3c3c3c;
+  color: #cccccc;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.luna-display-close:hover {
+  border-color: #007acc;
+}
+
+.luna-display-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  overflow: hidden;
+  height: 100%;
+}
+
+.luna-display-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.luna-section {
+  border: 1px solid #333333;
+  border-radius: 8px;
+  padding: 10px;
+  background: #1b1b1b;
+}
+
+.luna-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #cccccc;
+  margin-bottom: 8px;
+  letter-spacing: 0.2px;
+  text-transform: uppercase;
+}
+
+.luna-row {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0;
+}
+
+.luna-row label {
+  font-size: 11px;
+  color: #bdbdbd;
+}
+
+.luna-row input[type="range"] {
+  width: 100%;
+}
+
+.luna-inline {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.luna-select {
+  background: #252526;
+  border: 1px solid #3c3c3c;
+  color: #cccccc;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  outline: none;
+}
+
+.luna-kv {
+  font-size: 11px;
+  color: #9aa0a6;
+  white-space: nowrap;
+}
+
+.luna-btn {
+  background: #252526;
+  border: 1px solid #3c3c3c;
+  color: #cccccc;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.luna-btn:hover {
+  border-color: #007acc;
+  background: #2a2d2e;
+}
+
+.luna-btn.primary {
+  border-color: rgba(0, 122, 204, 0.7);
+  background: rgba(0, 122, 204, 0.12);
+  color: #ffffff;
+}
+
+.luna-display-hint {
+  font-size: 11px;
+  color: #9aa0a6;
+  line-height: 1.4;
+}
+
+.luna-display-canvas-wrap {
+  flex: 1;
+  min-height: 220px;
+  border: 1px solid #333333;
+  border-radius: 8px;
+  overflow: hidden;
+  background: radial-gradient(circle at 40% 30%, rgba(0, 122, 204, 0.18), rgba(0, 0, 0, 0) 55%);
+}
+
+.luna-display-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.luna-display-footer {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+

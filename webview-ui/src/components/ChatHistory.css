@@ -1,4 +1,4 @@
-.chat-history {
+﻿.chat-history {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -61,4 +61,11 @@
 }
 
 
+
+
+.chat-msg-feedback { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.chat-feedback-btn { border: 1px solid rgba(255, 255, 255, 0.15); background: rgba(255, 255, 255, 0.06); color: #e6e6e6; padding: 4px 8px; border-radius: 6px; font-size: 12px; cursor: pointer; }
+.chat-feedback-btn:hover { background: rgba(255, 255, 255, 0.10); }
+.chat-feedback-btn-solved { border-color: rgba(0, 122, 204, 0.5); background: rgba(0, 122, 204, 0.18); }
+.chat-feedback-meta { margin-left: auto; font-size: 11px; color: rgba(255, 255, 255, 0.55); }
 

@@ -1,4 +1,4 @@
-// Luna AI Agent - Renderer Process
+﻿// Luna AI Agent - Renderer Process
 let editor = null;
 let currentFile = null;
 let currentFolder = null;
@@ -21,13 +21,13 @@ let editorState = {
 function initializeUI() {
     console.log('Initializing Luna UI components...');
 
-    // 1. 로딩 화면을 최대한 빨리 닫습니다. (안정성 확보)
+    // 1. 濡쒕뵫 ?붾㈃??理쒕???鍮⑤━ ?レ뒿?덈떎. (?덉젙???뺣낫)
     setTimeout(() => {
         const loading = document.getElementById('loading');
         if (loading) loading.classList.add('hide');
     }, 1000);
 
-    // 2. 다른 UI 컴포넌트들을 독립적으로 초기화합니다.
+    // 2. ?ㅻⅨ UI 而댄룷?뚰듃?ㅼ쓣 ?낅┰?곸쑝濡?珥덇린?뷀빀?덈떎.
     try {
         setupNavigation();
         setupIPCListeners();
@@ -40,7 +40,7 @@ function initializeUI() {
         console.error('UI Setup error:', e);
     }
 
-    // 3. 에디터 엔진(가장 무거운 작업)을 백그라운드에서 로드합니다.
+    // 3. ?먮뵒???붿쭊(媛??臾닿굅???묒뾽)??諛깃렇?쇱슫?쒖뿉??濡쒕뱶?⑸땲??
     loadMonaco();
 }
 
@@ -392,7 +392,7 @@ function setupTerminal() {
                 return false;
             }
 
-            // Ctrl + L: Clear terminal (Manual "지우기")
+            // Ctrl + L: Clear terminal (Manual "吏?곌린")
             if (arg.ctrlKey && arg.code === 'KeyL') {
                 terminal.clear();
                 inputBuffer = '';
@@ -455,17 +455,50 @@ function setupTerminal() {
         terminal.writeln(' - Right-click to copy/paste (Always works)');
         terminal.writeln(' - Ctrl+L to clear screen');
         terminal.write('\r\n');
+        // Bridge: iframe(webview-ui) -> main process
+        window.addEventListener('message', async (event) => {
+            const msg = event.data;
+            if (!msg) return;
+            if (!window.electronAPI) return;
+
+            if (msg.type === 'get_editor_context') {
+                try {
+                    const ctx = await window.electronAPI.getEditorState?.();
+                    iframe?.contentWindow?.postMessage({ type: 'editor_context', data: ctx || {} }, '*');
+                } catch (_) { }
+                return;
+            }
+
+            if (msg.type === 'execute_task') {
+                const instruction = msg.data?.instruction;
+                const context = msg.data?.context || {};
+                if (!instruction) return;
+                await window.electronAPI.executeTask(instruction, { ...context, taskId: msg.data?.taskId });
+                return;
+            }
+
+            if (msg.type === 'cancel_task') {
+                const taskId = msg.data?.taskId;
+                if (taskId) await window.electronAPI.cancelTask(taskId);
+                return;
+            }
+
+            if (msg.type === 'rl_feedback') {
+                window.electronAPI.send?.('rl-feedback', msg.data || {});
+                return;
+            }
+        });
     } catch (err) {
         console.error('Terminal initialization error:', err);
     }
 }
 
-// Monaco Editor 로딩
+// Monaco Editor 濡쒕뵫
 function loadMonaco() {
     const editorContainer = document.getElementById('monaco-editor');
     if (!editorContainer) return;
 
-    // 에디터가 뜨기 전 메시지
+    // ?먮뵒?곌? ?④린 ??硫붿떆吏
     editorContainer.innerHTML = '<div style="display:flex; justify-content:center; align-items:center; height:100%; color:#555;">Loading Editor Engine...</div>';
 
     if (typeof require === 'undefined') {
@@ -476,8 +509,8 @@ function loadMonaco() {
     try {
         require.config({ paths: { 'vs': 'https://unpkg.com/monaco-editor@0.44.0/min/vs' } });
         require(['vs/editor/editor.main'], function () {
-            // 로딩 성공 시 에디터 생성
-            editorContainer.innerHTML = ''; // 로딩 메시지 제거
+            // 濡쒕뵫 ?깃났 ???먮뵒???앹꽦
+            editorContainer.innerHTML = ''; // 濡쒕뵫 硫붿떆吏 ?쒓굅
             initEditor();
         }, function (err) {
             console.error('Monaco load failed:', err);
@@ -503,7 +536,7 @@ function initEditor() {
     console.log('Monaco Editor initialized successfully.');
 }
 
-// ... (setupEditorEvents, broadcastState, openFile, openFolder 등 기능 유지)
+// ... (setupEditorEvents, broadcastState, openFile, openFolder ??湲곕뒫 ?좎?)
 
 function setupEditorEvents() {
     if (!editor) return;
@@ -533,7 +566,7 @@ function broadcastState() {
 function setupIPCListeners() {
     if (!window.electronAPI) return;
 
-    // 분리 버튼 이벤트
+    // 遺꾨━ 踰꾪듉 ?대깽??
     const popoutBtn = document.getElementById('popout-chat');
     if (popoutBtn) {
         popoutBtn.onclick = () => {
@@ -542,7 +575,7 @@ function setupIPCListeners() {
         };
     }
 
-    // 채팅 창이 닫혔을 때 다시 메인 패널 보여주기
+    // 梨꾪똿 李쎌씠 ?ロ삍?????ㅼ떆 硫붿씤 ?⑤꼸 蹂댁뿬二쇨린
     window.electronAPI.on('chat-window-closed', () => {
         document.getElementById('right-panel').style.display = 'flex';
     });
@@ -583,8 +616,10 @@ function setupIPCListeners() {
         } else if (message.type === 'stop_deep_learning') {
             window.electronAPI.send('stop_deep_learning');
         } else if (message.type === 'get_deep_learning_status') {
-            window.electronAPI.send('get_deep_learning_status');
-        }
+             window.electronAPI.send('get_deep_learning_status');
+         } else if (message.type === 'rl_feedback') {
+             window.electronAPI.send('rl-feedback', message.data || {});
+         }
     });
 
     window.electronAPI.on('open-file', (e, p) => openFile(p));
@@ -627,8 +662,9 @@ function setupIPCListeners() {
                 data: {
                     taskId,
                     success: !!response.data?.success,
-                    message: response.data?.message || ''
-                }
+                    message: response.data?.message || '',
+                     rl: response.data?.rl || null
+                 }
             };
         } else if (response.type === 'action') {
             mapped = {
@@ -697,7 +733,7 @@ window.electronAPI.on('llm-connection', (event, payload) => {
         } catch (_) { }
     });
 
-    // 자율 학습 상태 수신 및 웹뷰 전달
+    // ?먯쑉 ?숈뒿 ?곹깭 ?섏떊 諛??밸럭 ?꾨떖
     window.electronAPI.on('deep_learning_status', (event, payload) => {
         const iframe = document.getElementById('ai-panel-iframe');
         if (iframe && iframe.contentWindow) {
@@ -881,7 +917,7 @@ function renderFileTree(files) {
     files.forEach(file => {
         const item = document.createElement('div');
         item.className = 'file-item';
-        item.innerHTML = `<span class="icon">${file.isDirectory ? '📁' : '📄'}</span><span>${file.name}</span>`;
+        item.innerHTML = `<span class="icon">${file.isDirectory ? '?뱚' : '?뱞'}</span><span>${file.name}</span>`;
         item.onclick = () => file.isDirectory ? openFolder(file.path) : openFile(file.path);
         fileTree.appendChild(item);
     });
@@ -931,7 +967,7 @@ function setupSidebarSections() {
         h.onclick = () => {
             const isCollapsed = h.classList.toggle('collapsed');
             c.classList.toggle('hidden', isCollapsed);
-            h.querySelector('.icon').textContent = isCollapsed ? '▶' : '▼';
+            h.querySelector('.icon').textContent = isCollapsed ? '?? : '??;
         };
     });
 }
@@ -973,7 +1009,7 @@ async function setupPackageManager() {
             el.innerHTML = `
                 <div class="pkg-info">
                     <span class="pkg-name">${item.name}</span>
-                    <span class="pkg-desc">${item.version} • ${item.author}</span>
+                    <span class="pkg-desc">${item.version} ??${item.author}</span>
                 </div>
                 <button class="btn btn-sm primary install-btn" data-url="${item.downloadUrl}" data-id="${item.id}">Get</button>
             `;
@@ -1011,3 +1047,7 @@ async function setupPackageManager() {
 }
 
 window.addEventListener('DOMContentLoaded', initializeUI);
+
+
+
+

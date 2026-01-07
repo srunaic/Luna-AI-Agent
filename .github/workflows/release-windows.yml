@@ -1,4 +1,4 @@
-﻿name: Release (Windows) [DISABLED]
+name: Release (Windows) [DISABLED]
 
 on:
   workflow_dispatch: {}

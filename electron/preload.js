@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron');
+﻿const { contextBridge, ipcRenderer } = require('electron');
 
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
@@ -53,7 +53,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
       'set-model',
       'start_deep_learning',
       'stop_deep_learning',
-      'get_deep_learning_status'
+      'get_deep_learning_status',
+      'rl-feedback'
     ];
     if (validChannels.includes(channel)) {
       ipcRenderer.send(channel, data);
@@ -96,3 +97,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   fetchMarketplace: () => ipcRenderer.invoke('fetch-marketplace'),
   installExtension: (url, id) => ipcRenderer.invoke('install-extension', { url, id })
 });
+
+

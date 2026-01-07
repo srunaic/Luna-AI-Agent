@@ -1,4 +1,4 @@
-﻿from django.conf import settings
+from django.conf import settings
 from rest_framework.exceptions import PermissionDenied
 
 
@@ -29,3 +29,18 @@ def require_client(request) -> None:
     raise PermissionDenied(
         "Client access is restricted. Set LUNA_CLIENT_TOKEN or enable LUNA_CLIENT_ALLOW_LOCALHOST for localhost."
     )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
