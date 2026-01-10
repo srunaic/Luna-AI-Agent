@@ -6,6 +6,7 @@ class AgentRuntime {
     constructor() {
         this.isRunning = false;
         this.snapshots = new Map(); // 파일 경로별 마지막 성공 상태 저장
+        this.terminalBuffer = ""; // 메인 프로세스에서 전달받는 터미널 출력
     }
 
     async processRequest(request, onResponse) {
@@ -313,11 +314,7 @@ class AgentRuntime {
                 return summary.length > 7000 ? summary.substring(0, 7000) + "\n... (데이터가 많아 일부 생략되었습니다)" : summary;
 
             case 'read_terminal':
-                if (typeof window !== 'undefined' && window.electronAPI?.readTerminalBuffer) {
-                    const buffer = await window.electronAPI.readTerminalBuffer();
-                    return buffer || "터미널 버퍼가 비어 있습니다.";
-                }
-                return "터미널 버퍼 읽기를 지원하지 않는 환경입니다.";
+                return this.terminalBuffer || "터미널 버퍼가 비어 있거나 아직 데이터가 수집되지 않았습니다.";
 
             case 'read_file_tail':
                 const tPath = path.resolve(root, input.trim());

@@ -909,12 +909,14 @@ function setupPowerShell() {
     ptyProcess.stdout.on('data', (data) => {
       const str = data.toString();
       terminalBuffer = (terminalBuffer + str).slice(-MAX_BUFFER_SIZE);
+      agentRuntime.terminalBuffer = terminalBuffer; // 에이전트 런타임에 동기화
       if (mainWindow) mainWindow.webContents.send('terminal-data', str);
     });
 
     ptyProcess.stderr.on('data', (data) => {
       const str = data.toString();
       terminalBuffer = (terminalBuffer + str).slice(-MAX_BUFFER_SIZE);
+      agentRuntime.terminalBuffer = terminalBuffer; // 에이전트 런타임에 동기화
       if (mainWindow) mainWindow.webContents.send('terminal-data', str);
     });
 
