@@ -22,9 +22,15 @@ function isAdmin() {
 let mainWindow;
 let chatWindows = []; // 분리된 채팅 창들
 let ptyProcess;
-let terminalBuffer = ""; // 터미널 출력 버퍼
-const MAX_BUFFER_SIZE = 50000; // 최대 버퍼 크기
+let currentEditorState = {
+  activeFile: null,
+  cursor: { line: 1, column: 1 },
+  selection: null
+};
+
 const agentRuntime = new AgentRuntime();
+agentRuntime.shellRunner = runCommandInShell; // 쉘 실행기 주입
+agentRuntime.editorState = currentEditorState; // 초기 에디터 상태 주입
 let llmHealthInterval = null;
 let lastLLMConnected = null;
 let activeModel = 'ollama';
@@ -933,6 +939,51 @@ function setupPowerShell() {
     console.error('Could not start PowerShell:', err);
   }
 }
+
+async function runCommandInShell(cmd) {
+  if (!ptyProcess || !ptyProcess.stdin || !ptyProcess.stdin.writable) {
+    throw new Error("Shell not initialized or not writable");
+  }
+
+  return new Promise((resolve) => {
+    const delimiter = `__LUNA_CMD_DONE_${Date.now()}__`;
+    let accumulated = "";
+    const timeout = setTimeout(() => {
+      cleanup();
+      resolve(accumulated + "\n[Error: Command timed out]");
+    }, 60000); // 60초 타임아웃
+
+    const listener = (data) => {
+      accumulated += data.toString();
+      if (accumulated.includes(delimiter)) {
+        cleanup();
+        const parts = accumulated.split(delimiter);
+        // 명령어 자체와 델리미터 제거 후 순수 출력만 반환
+        resolve(parts[0].trim());
+      }
+    };
+
+    const cleanup = () => {
+      clearTimeout(timeout);
+      ptyProcess.stdout.removeListener('data', listener);
+      ptyProcess.stderr.removeListener('data', listener);
+    };
+
+    ptyProcess.stdout.on('data', listener);
+    ptyProcess.stderr.on('data', listener);
+
+    // 명령어 전송 후 델리미터 출력 명령 전송
+    ptyProcess.stdin.write(`${cmd}\r\n`);
+    ptyProcess.stdin.write(`echo "${delimiter}"\r\n`);
+  });
+}
+
+ipcMain.on('update-editor-state', (event, state) => {
+  currentEditorState = { ...currentEditorState, ...state };
+  agentRuntime.editorState = currentEditorState;
+});
+
+ipcMain.handle('get-editor-state', () => currentEditorState);
 
 app.whenReady().then(createWindow);
 

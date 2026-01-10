@@ -7,6 +7,7 @@ class AgentRuntime {
         this.isRunning = false;
         this.snapshots = new Map(); // 파일 경로별 마지막 성공 상태 저장
         this.terminalBuffer = ""; // 메인 프로세스에서 전달받는 터미널 출력
+        this.shellRunner = null; // 메인 프로세스에서 주입받는 쉘 실행기
     }
 
     async processRequest(request, onResponse) {
@@ -156,6 +157,11 @@ class AgentRuntime {
             case 'terminal_run':
             case 'shell_run': // 별칭 지원
                 try {
+                    if (this.shellRunner) {
+                        // 영속적 쉘 세션을 통해 실행 (상태 유지)
+                        const res = await this.shellRunner(input);
+                        return res;
+                    }
                     const { stdout, stderr } = await execPromise(input, { encoding: 'utf8', cwd: root });
                     return `STDOUT:\n${stdout}\n\nSTDERR:\n${stderr}`;
                 } catch (err) {
@@ -189,18 +195,37 @@ class AgentRuntime {
                 const fullPath = path.resolve(root, pPath);
                 if (!fs.existsSync(fullPath)) throw new Error(`파일을 찾을 수 없습니다: ${pPath}`);
 
-                const fileLines = fs.readFileSync(fullPath, 'utf8').split('\n');
-                if (start < 1 || start > fileLines.length) throw new Error(`시작 라인(${start})이 파일 범위를 벗어났습니다.`);
+                const originalRaw = fs.readFileSync(fullPath, 'utf8');
+                const fileLines = originalRaw.split('\n');
 
-                // start-1: 1-indexed to 0-indexed
-                // (end - start + 1): number of lines to remove
-                const originalContent = fileLines.join('\n');
-                this.snapshots.set(pPath, originalContent); // 수정 전 스냅샷 저장
+                // 1-indexed validation
+                if (start < 1 || start > (fileLines.length + 1)) throw new Error(`시작 라인(${start})이 파일 범위를 벗어났습니다. (총 ${fileLines.length}라인)`);
 
-                fileLines.splice(start - 1, (end - start + 1), pContent);
-                fs.writeFileSync(fullPath, fileLines.join('\n'), 'utf8');
+                this.snapshots.set(pPath, originalRaw); // 무결성을 위해 원본 전체 스냅샷 저장
+
+                const patchedLines = [...fileLines];
+                // splice(index, deleteCount, ...items)
+                patchedLines.splice(start - 1, (end - start + 1), pContent);
+                const finalContent = patchedLines.join('\n');
+
+                // Atomic write simulation: tmp 파일 생성 후 교체
+                const tempPath = `${fullPath}.luna_tmp_${Date.now()}`;
+                try {
+                    fs.writeFileSync(tempPath, finalContent, 'utf8');
+                    try {
+                        fs.renameSync(tempPath, fullPath);
+                    } catch (renameErr) {
+                        // Windows에서 파일 사용 중 등의 이유로 rename이 실패할 수 있음
+                        fs.copyFileSync(tempPath, fullPath);
+                        fs.unlinkSync(tempPath);
+                    }
+                } catch (writeErr) {
+                    if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+                    throw writeErr;
+                }
+
                 return {
-                    result: `${pPath} 파일의 ${start}번~${end}번 라인을 수정했습니다. (이전 상태가 보존되었습니다)`,
+                    result: `${pPath} 파일의 ${start}~${end}라인을 패치했습니다. (원자적 작업 완료)`,
                     metadata: { filePath: pPath }
                 };
 
@@ -589,8 +614,13 @@ class AgentRuntime {
             }
         } catch (_) { }
 
-        const fileContext = context.activeFile ? `현재 활성 파일: ${context.activeFile}\n` : "";
-        const selectionContext = context.selectedText ? `선택된 코드:\n\`\`\`\n${context.selectedText}\n\`\`\`\n` : "";
+        // Editor State Injector (Milestone 3: Vision & Hand)
+        const activeFile = this.editorState?.activeFile || context.activeFile || "";
+        const cursor = this.editorState?.cursor;
+        const selection = this.editorState?.selection;
+
+        const fileContext = activeFile ? `현재 활성 파일: ${activeFile}${cursor ? ` (Ln ${cursor.line}, Col ${cursor.column})` : ""}\n` : "";
+        const selectionContext = selection ? `[현재 선택 영역 (${selection.startLine}-${selection.endLine})]\n\`\`\`\n${selection.text}\n\`\`\`\n` : (context.selectedText ? `선택된 코드:\n\`\`\`\n${context.selectedText}\n\`\`\`\n` : "");
         const projectContext = context.projectRoot ? `프로젝트 루트: ${context.projectRoot}\n` : "";
         const historyText = context.history?.length > 0 ? `이전 대화 맥락:\n${context.history.map(h => `${h.role}: ${h.content}`).join('\n')}\n` : "";
 

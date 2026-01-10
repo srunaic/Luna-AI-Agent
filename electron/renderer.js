@@ -17,6 +17,16 @@ let editorState = {
     projectRoot: null
 };
 
+function pushEditorState() {
+    if (window.electronAPI && window.electronAPI.updateEditorState) {
+        window.electronAPI.updateEditorState({
+            activeFile: currentFile ? currentFile.path : null,
+            cursor: editorState.cursor,
+            selection: editorState.selection
+        });
+    }
+}
+
 // Initialize UI
 function initializeUI() {
     console.log('Initializing Luna UI components...');
@@ -499,11 +509,41 @@ function initEditor() {
         minimap: { enabled: true }
     });
 
+    // Cursor position tracking
+    editor.onDidChangeCursorPosition((e) => {
+        editorState.cursor = { line: e.position.lineNumber, column: e.position.column };
+        pushEditorState();
+    });
+
+    // Selection tracking
+    editor.onDidChangeCursorSelection((e) => {
+        const selection = editor.getSelection();
+        if (selection && !selection.isEmpty()) {
+            editorState.selection = {
+                startLine: selection.startLineNumber,
+                startColumn: selection.startColumn,
+                endLine: selection.endLineNumber,
+                endColumn: selection.endColumn,
+                text: editor.getModel().getValueInRange(selection)
+            };
+        } else {
+            editorState.selection = null;
+        }
+        pushEditorState();
+    });
+
     setupEditorEvents();
     console.log('Monaco Editor initialized successfully.');
 }
 
-// ... (setupEditorEvents, broadcastState, openFile, openFolder 등 기능 유지)
+// Monaco Editor 상태를 Electron 메인 프로세스와 AI 패널에 전송
+function pushEditorState() {
+    if (window.electronAPI) window.electronAPI.updateEditorState(editorState);
+    const iframe = document.getElementById('ai-panel-iframe');
+    if (iframe && iframe.contentWindow) {
+        iframe.contentWindow.postMessage({ type: 'editor_state_update', data: editorState }, '*');
+    }
+}
 
 function setupEditorEvents() {
     if (!editor) return;
@@ -511,23 +551,15 @@ function setupEditorEvents() {
         editorState.cursor = { line: e.position.lineNumber, column: e.position.column };
         const cp = document.getElementById('cursor-position');
         if (cp) cp.textContent = `Ln ${editorState.cursor.line}, Col ${editorState.cursor.column}`;
-        broadcastState();
+        pushEditorState();
     });
     editor.onDidChangeModelContent(() => {
         if (currentFile) {
             const st = document.getElementById('status-text');
             if (st) st.textContent = `${currentFile.name} - Modified`;
         }
-        broadcastState();
+        pushEditorState();
     });
-}
-
-function broadcastState() {
-    if (window.electronAPI) window.electronAPI.updateEditorState(editorState);
-    const iframe = document.getElementById('ai-panel-iframe');
-    if (iframe && iframe.contentWindow) {
-        iframe.contentWindow.postMessage({ type: 'editor_state_update', data: editorState }, '*');
-    }
 }
 
 function setupIPCListeners() {
