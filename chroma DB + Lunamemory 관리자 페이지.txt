@@ -1,0 +1,3 @@
+LunaMemory Chroma DB 관리자 페이지 주소: http://127.0.0.1:8000/api/memory/admin/ui/
+
+DJANGO REST 관리자 페이지 주소: http://127.0.0.1:8000/api/memory/admin/info/

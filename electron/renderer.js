@@ -597,7 +597,7 @@ function setupIPCListeners() {
         }
     });
     window.electronAPI.on('agent-response', (event, response) => {
-        // Keep Monaco apply_diff behavior (editor-side)
+        // Monaco apply_diff behavior (legacy)
         if (response.type === 'action' && response.data.tool === 'apply_diff') {
             if (editor && (!response.data.filePath || response.data.filePath === currentFile?.path)) {
                 editor.executeEdits('agent', [{
@@ -605,6 +605,14 @@ function setupIPCListeners() {
                     text: response.data.newText,
                     forceMoveMarkers: true
                 }]);
+            }
+        }
+
+        // New Patch/Write synchronization
+        if (response.type === 'action' && (response.data.tool === 'patch_file' || response.data.tool === 'write_file')) {
+            if (response.data.filePath && currentFile && response.data.filePath === currentFile.path) {
+                console.log('Detected agent modification on active file. Reloading...');
+                openFile(response.data.filePath);
             }
         }
 
@@ -713,6 +721,9 @@ async function openSettingsModal() {
     const baseUrlEl = document.getElementById('openai-baseUrl');
     const apiKeyEl = document.getElementById('openai-apiKey');
     const lunaApiKeyEl = document.getElementById('luna-apiKey');
+    const vllmHostEl = document.getElementById('vllm-host');
+    const vllmPortEl = document.getElementById('vllm-port');
+    const vllmModelEl = document.getElementById('vllm-model');
     const systemInstructionsEl = document.getElementById('luna-system-instructions');
     const firewallBtn = document.getElementById('ollama-firewall-allow');
     const statusEl = document.getElementById('settings-status');
@@ -734,6 +745,9 @@ async function openSettingsModal() {
     if (baseUrlEl) baseUrlEl.value = settings?.openai?.baseUrl ?? 'https://api.openai.com';
     if (apiKeyEl) apiKeyEl.value = settings?.openai?.apiKey ?? '';
     if (lunaApiKeyEl) lunaApiKeyEl.value = settings?.luna?.apiKey ?? '';
+    if (vllmHostEl) vllmHostEl.value = settings?.vllm?.host ?? '127.0.0.1';
+    if (vllmPortEl) vllmPortEl.value = String(settings?.vllm?.port ?? 8000);
+    if (vllmModelEl) vllmModelEl.value = settings?.vllm?.model ?? 'facebook/opt-125m';
     if (systemInstructionsEl) systemInstructionsEl.value = settings?.systemInstructions ?? '';
     if (statusEl) statusEl.textContent = '';
 
@@ -768,6 +782,13 @@ async function openSettingsModal() {
             },
             luna: {
                 apiKey: (lunaApiKeyEl?.value || '').trim()
+            },
+            vllm: {
+                host: (vllmHostEl?.value || '127.0.0.1').trim(),
+                port: Number((vllmPortEl?.value || '8000').trim()),
+                model: (vllmModelEl?.value || 'facebook/opt-125m').trim(),
+                numPredict: settings?.vllm?.numPredict ?? 1024,
+                temperature: settings?.vllm?.temperature ?? 0.1
             },
             systemInstructions: (systemInstructionsEl?.value || '').trim()
         };

@@ -5,6 +5,7 @@ const https = require('https');
 class AgentRuntime {
     constructor() {
         this.isRunning = false;
+        this.snapshots = new Map(); // 파일 경로별 마지막 성공 상태 저장
     }
 
     async processRequest(request, onResponse) {
@@ -23,6 +24,8 @@ class AgentRuntime {
                 let fullText = "";
                 if (model === 'ollama' || model === 'luna-soul') {
                     fullText = await this.callLunaCore(instruction, context, onResponse, true); // directMode: true
+                } else if (model === 'vllm') {
+                    fullText = await this.callVLLM(instruction, context, onResponse, true);
                 } else if (model === 'openai') {
                     fullText = await this.callOpenAI(instruction, context, onResponse);
                 } else if (model === 'luna-cloud') {
@@ -41,12 +44,14 @@ class AgentRuntime {
                 turn++;
                 onResponse({
                     type: 'status',
-                    data: { state: 'thinking', message: `Orchestrating (Turn ${turn})...`, taskId: context.taskId }
+                    data: { state: 'planning', message: `Orchestrating (Turn ${turn})...`, taskId: context.taskId }
                 });
 
                 let responseText = "";
                 if (model === 'ollama' || model === 'luna-soul') {
                     responseText = await this.callLunaCore(instruction, { ...context, history }, onResponse);
+                } else if (model === 'vllm') {
+                    responseText = await this.callVLLM(instruction, { ...context, history }, onResponse);
                 } else if (model === 'openai') {
                     responseText = await this.callOpenAI(instruction, { ...context, history }, onResponse);
                 } else if (model === 'luna-cloud') {
@@ -61,15 +66,26 @@ class AgentRuntime {
                     const toolName = toolMatch[1].trim();
                     const toolInput = toolMatch[2].trim().replace(/^```\w*\n?/, '').replace(/\n?```$/, '');
 
+                    let currentState = 'executing';
+                    if (toolName === 'patch_file') currentState = 'patching';
+                    if (toolName === 'terminal_run' && (toolInput.includes('test') || toolInput.includes('build') || toolInput.includes('tsc'))) currentState = 'verifying';
+
                     onResponse({
                         type: 'status',
-                        data: { state: 'executing', message: `Using tool: ${toolName}...`, taskId: context.taskId }
+                        data: { state: currentState, message: `Using tool: ${toolName}...`, taskId: context.taskId }
                     });
 
                     // Execute tool
                     let toolResult = "";
+                    let toolMetadata = {};
                     try {
-                        toolResult = await this.executeTool(toolName, toolInput, context);
+                        const res = await this.executeTool(toolName, toolInput, context);
+                        if (res && typeof res === 'object' && res.result !== undefined) {
+                            toolResult = res.result;
+                            toolMetadata = res.metadata || {};
+                        } else {
+                            toolResult = res;
+                        }
                     } catch (e) {
                         toolResult = `Error: ${e.message}`;
                     }
@@ -80,7 +96,8 @@ class AgentRuntime {
                             tool: toolName,
                             input: toolInput,
                             result: toolResult,
-                            taskId: context.taskId
+                            taskId: context.taskId,
+                            ...toolMetadata
                         }
                     });
 
@@ -145,7 +162,8 @@ class AgentRuntime {
                 }
 
             case 'read_file':
-                return fs.readFileSync(path.resolve(root, input), 'utf8');
+                const rawContent = fs.readFileSync(path.resolve(root, input), 'utf8');
+                return rawContent.split('\n').map((line, index) => `${index + 1}: ${line}`).join('\n');
 
             case 'write_file':
                 const firstNewLine = input.indexOf('\n');
@@ -153,7 +171,48 @@ class AgentRuntime {
                 const filePath = input.substring(0, firstNewLine).trim();
                 const content = input.substring(firstNewLine + 1);
                 fs.writeFileSync(path.resolve(root, filePath), content, 'utf8');
-                return `${filePath} 파일에 내용을 기록했습니다.`;
+                return {
+                    result: `${filePath} 파일에 내용을 기록했습니다.`,
+                    metadata: { filePath }
+                };
+
+            case 'patch_file':
+                // Format: path\nstartLine-endLine\nnewContent
+                const patchLines = input.split('\n');
+                if (patchLines.length < 3) throw new Error("patch_file 형식이 잘못되었습니다. (경로\n시작라인-끝라인\n내용)");
+                const pPath = patchLines[0].trim();
+                const range = patchLines[1].trim();
+                const [start, end] = range.split('-').map(Number);
+                const pContent = patchLines.slice(2).join('\n');
+
+                const fullPath = path.resolve(root, pPath);
+                if (!fs.existsSync(fullPath)) throw new Error(`파일을 찾을 수 없습니다: ${pPath}`);
+
+                const fileLines = fs.readFileSync(fullPath, 'utf8').split('\n');
+                if (start < 1 || start > fileLines.length) throw new Error(`시작 라인(${start})이 파일 범위를 벗어났습니다.`);
+
+                // start-1: 1-indexed to 0-indexed
+                // (end - start + 1): number of lines to remove
+                const originalContent = fileLines.join('\n');
+                this.snapshots.set(pPath, originalContent); // 수정 전 스냅샷 저장
+
+                fileLines.splice(start - 1, (end - start + 1), pContent);
+                fs.writeFileSync(fullPath, fileLines.join('\n'), 'utf8');
+                return {
+                    result: `${pPath} 파일의 ${start}번~${end}번 라인을 수정했습니다. (이전 상태가 보존되었습니다)`,
+                    metadata: { filePath: pPath }
+                };
+
+            case 'undo_patch':
+                const uPath = input.trim();
+                if (!this.snapshots.has(uPath)) throw new Error(`복구할 스냅샷이 없습니다: ${uPath}`);
+                const uFullPath = path.resolve(root, uPath);
+                fs.writeFileSync(uFullPath, this.snapshots.get(uPath), 'utf8');
+                this.snapshots.delete(uPath);
+                return {
+                    result: `${uPath} 파일을 패치 전 상태로 복구했습니다.`,
+                    metadata: { filePath: uPath }
+                };
 
             case 'list_dir':
                 const dirPath = path.resolve(root, input || '.');
@@ -197,6 +256,24 @@ class AgentRuntime {
                 const fileName = `thought_${category}_${Date.now()}.txt`;
                 fs.writeFileSync(path.join(memoryDir, fileName), input, 'utf8');
                 return `루나가 새로운 영감을 학습했습니다: ${input.substring(0, 50)}... 장기 기억에 저장되었습니다.`;
+
+            case 'list_imports':
+                const targetFile = path.resolve(root, input.trim());
+                if (!fs.existsSync(targetFile)) throw new Error(`파일을 찾을 수 없습니다: ${input}`);
+                const contentText = fs.readFileSync(targetFile, 'utf8');
+                const importsMatch = contentText.match(/(import\s+.*?from\s+['"].*?['"]|require\(['"].*?['"]\))/g);
+                return importsMatch ? importsMatch.join('\n') : "임포트 내역이 없습니다.";
+
+            case 'search_symbol':
+                const symbol = input.trim();
+                if (!symbol) throw new Error("검색할 심볼 이름을 입력하세요.");
+                try {
+                    // node_modules 제외하고 검색
+                    const { stdout } = await execPromise(`Get-ChildItem -Recurse -File | Where-Object { $_.FullName -notmatch "node_modules|dist|out" } | Select-String -Pattern "${symbol}"`, { encoding: 'utf8', cwd: root });
+                    return stdout || "심볼을 찾을 수 없습니다.";
+                } catch (err) {
+                    return "검색 중 오류 발생: " + err.message;
+                }
 
             default:
                 throw new Error(`알려지지 않은 도구입니다: ${name}`);
@@ -319,6 +396,84 @@ class AgentRuntime {
         });
     }
 
+    async callVLLM(instruction, context, onResponse, directMode = false) {
+        const prompt = directMode ? instruction : this.buildPrompt(instruction, context);
+
+        return new Promise((resolve, reject) => {
+            const cfg = context.llmSettings?.vllm || {};
+            const host = cfg.host || '127.0.0.1';
+            const port = Number(cfg.port || 8000);
+            const modelName = cfg.model || 'facebook/opt-125m'; // vLLM에서 로드된 모델명
+
+            const payload = {
+                model: modelName,
+                prompt: prompt,
+                stream: true,
+                max_tokens: Number(cfg.numPredict || 1024),
+                temperature: Number(cfg.temperature ?? 0.1),
+                stop: ["THOUGHT:", "TOOL:", "ANSWER:", "\n\n\n"] // 무한루프 방지용 스탑 시퀀스
+            };
+
+            const data = JSON.stringify(payload);
+            const options = {
+                hostname: host,
+                port,
+                path: '/v1/completions',
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Content-Length': Buffer.byteLength(data)
+                }
+            };
+
+            const req = http.request(options, (res) => {
+                if (res.statusCode !== 200) {
+                    let body = '';
+                    res.on('data', chunk => body += chunk);
+                    res.on('end', () => reject(new Error(`vLLM Error ${res.statusCode}: ${body}`)));
+                    return;
+                }
+
+                let fullText = "";
+                let buffer = "";
+                let firstToken = true;
+
+                res.on('data', (chunk) => {
+                    if (firstToken) {
+                        onResponse({ type: 'status', data: { state: 'typing', message: '', isPartial: true, taskId: context.taskId } });
+                        firstToken = false;
+                    }
+
+                    const lines = (buffer + chunk.toString()).split('\n');
+                    buffer = lines.pop(); // 마지막 미완성 라인 버퍼링
+
+                    for (const line of lines) {
+                        const cleanLine = line.trim();
+                        if (!cleanLine.startsWith('data: ')) continue;
+                        const dataStr = cleanLine.substring(6);
+                        if (dataStr === '[DONE]') continue;
+
+                        try {
+                            const json = JSON.parse(dataStr);
+                            if (json.choices?.[0]?.text) {
+                                const text = json.choices[0].text;
+                                fullText += text;
+                                onResponse({ type: 'status', data: { state: 'typing', message: fullText, isPartial: true, taskId: context.taskId } });
+                            }
+                        } catch (e) { }
+                    }
+                });
+
+                res.on('end', () => resolve(fullText));
+            });
+
+            req.on('error', e => reject(new Error(`vLLM 연결 실패: ${e.message}`)));
+            req.setTimeout(60000, () => { req.destroy(); reject(new Error("vLLM 응답 타임아웃")); });
+            req.write(data);
+            req.end();
+        });
+    }
+
     async callOpenAI(instruction, context, onResponse) {
         const apiKey = context.llmSettings?.openai?.apiKey;
         if (!apiKey) {
@@ -367,7 +522,9 @@ ${systemInstructions}${learnedContext}
 1. 행동 우선: 설명보다 도구(TOOL) 호출이 먼저입니다. 도구가 필요한 작업은 즉시 도구를 사용하십시오.
 2. 정확한 프로토콜: 반드시 THOUGHT, TOOL, INPUT 또는 THOUGHT, ANSWER 형식을 지키십시오.
 3. 단계적 실행: 복잡한 작업은 한 번에 하나의 도구만 사용하여 신중하게 진행하십시오.
-4. 한국어 응답: 모든 THOUGHT와 ANSWER는 한국어로 작성하여 사용자에게 친근하고 전문적으로 전달하십시오.
+4. 자가 검증: 코드를 수정한 후에는 반드시 terminal_run을 통해 빌드나 테스트를 실행하여 무결성을 확인하십시오.
+5. 신속 복구: 빌드 실패나 심각한 오류 발생 시 undo_patch를 사용하여 즉시 수정을 취소하고 대안을 찾으십시오.
+6. 한국어 응답: 모든 THOUGHT와 ANSWER는 한국어로 작성하십시오.
 
 [현재 환경 정보]
 ${projectContext}${fileContext}${selectionContext}
@@ -378,12 +535,15 @@ ${instruction}
 
 [사용 가능한 도구]
 1. list_dir(path): 디렉토리 구조를 탐색합니다.
-2. read_file(path): 파일의 내용을 읽습니다.
-3. write_file(path\\ncontent): 파일을 생성하거나 덮어씁니다. (첫 줄에 상대경로, 다음 줄부터 내용)
-4. terminal_run(command): 파워쉘 명령어를 실행합니다.
-5. open_url(url): 브라우저에서 특정 웹사이트를 엽니다.
-6. open_app(app_name): 윈도우 앱을 실행합니다 (예: notepad, calc, chrome).
-7. deep_learn(insight): 자신의 논리나 지식을 학습하여 장기 기억에 저장합니다. 형식: [KNOWLEDGE/LOGIC/BEHAVIOR] 내용
+2. read_file(path): 파일의 내용을 읽습니다. (라인 번호 포함)
+3. patch_file(path\\nstartLine-endLine\\ncontent): 파일의 특정 범위를 정밀 수정합니다.
+4. write_file(path\\ncontent): 파일을 생성하거나 전체를 덮어씁니다.
+5. terminal_run(command): 파워쉘 명령을 실행합니다. (빌드/테스트/검증용)
+6. list_imports(path): 파일이 의존하는 임포트 목록을 가져옵니다.
+7. search_symbol(name): 프로젝트 내에서 특정 심볼의 위치를 찾습니다.
+8. undo_patch(path): 가장 최근에 수행한 patch_file 작업을 취소하고 복구합니다.
+9. open_url/open_app: 브라우저나 앱을 실행합니다.
+10. deep_learn(insight): 지식을 학습합니다.
 
 [응답 가이드라인]
 도구 사용 시:
