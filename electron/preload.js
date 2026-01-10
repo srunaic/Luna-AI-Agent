@@ -87,6 +87,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // App / Update info
   getAppInfo: () => ipcRenderer.invoke('get-app-info'),
   checkUpdatesNow: () => ipcRenderer.invoke('check-updates-now'),
+  readTerminalBuffer: () => ipcRenderer.invoke('read-terminal-buffer'),
 
   // Editor context for chat windows
   getEditorState: () => ipcRenderer.invoke('get-editor-state'),

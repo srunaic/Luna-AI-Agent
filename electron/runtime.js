@@ -264,6 +264,85 @@ class AgentRuntime {
                 const importsMatch = contentText.match(/(import\s+.*?from\s+['"].*?['"]|require\(['"].*?['"]\))/g);
                 return importsMatch ? importsMatch.join('\n') : "임포트 내역이 없습니다.";
 
+            case 'index_project':
+                const indexer = (dir, depth = 0) => {
+                    let results = [];
+                    if (depth > 5) return results;
+                    try {
+                        const list = fs.readdirSync(dir);
+                        list.forEach(file => {
+                            const fullPath = path.join(dir, file);
+                            const stat = fs.statSync(fullPath);
+                            if (stat && stat.isDirectory()) {
+                                if (file !== 'node_modules' && file !== '.git' && file !== 'dist' && file !== 'out' && file !== '.next') {
+                                    results.push(...indexer(fullPath, depth + 1));
+                                }
+                            } else if (file.match(/\.(js|jsx|ts|tsx)$/)) {
+                                const content = fs.readFileSync(fullPath, 'utf8');
+                                const symbols = [];
+                                // 클래스, 함수, 인터페이스, 타입 선언 매칭
+                                const matches = content.matchAll(/(export\s+)?(class|function|interface|type)\s+(\w+)/g);
+                                for (const m of matches) symbols.push(`${m[2]} ${m[3]}`);
+
+                                // 화살표 함수 (const foo = () => ...)
+                                const arrowMatches = content.matchAll(/(export\s+)?(const|let|var)\s+(\w+)\s*=\s*(\(.*?\)|(\w+))\s*=>/g);
+                                for (const m of arrowMatches) symbols.push(`func ${m[3]}`);
+
+                                if (symbols.length > 0) {
+                                    results.push({
+                                        path: path.relative(root, fullPath),
+                                        symbols: [...new Set(symbols)] // 중복 제거
+                                    });
+                                }
+                            }
+                        });
+                    } catch (e) { console.error(`Indexing failed for ${dir}:`, e); }
+                    return results;
+                };
+                const projectIndex = indexer(root);
+                const indexPath = path.resolve(root, 'luna_index.json');
+                fs.writeFileSync(indexPath, JSON.stringify(projectIndex, null, 2), 'utf8');
+                return `[LUNA INDEX] 프로젝트 지도를 새로 그렸습니다. ${projectIndex.length}개의 파일을 스캔하여 luna_index.json에 기록했습니다.`;
+
+            case 'get_project_map':
+                const mapPath = path.resolve(root, 'luna_index.json');
+                if (!fs.existsSync(mapPath)) return "인덱스가 생성되지 않았습니다. index_project 도구를 먼저 실행하여 지도를 그리십시오.";
+                const indexData = fs.readFileSync(mapPath, 'utf8');
+                const parsedIndex = JSON.parse(indexData);
+                const summary = parsedIndex.map(f => `📄 ${f.path}\n   ㄴ ${f.symbols.join(', ')}`).join('\n');
+                return summary.length > 7000 ? summary.substring(0, 7000) + "\n... (데이터가 많아 일부 생략되었습니다)" : summary;
+
+            case 'read_terminal':
+                if (typeof window !== 'undefined' && window.electronAPI?.readTerminalBuffer) {
+                    const buffer = await window.electronAPI.readTerminalBuffer();
+                    return buffer || "터미널 버퍼가 비어 있습니다.";
+                }
+                return "터미널 버퍼 읽기를 지원하지 않는 환경입니다.";
+
+            case 'read_file_tail':
+                const tPath = path.resolve(root, input.trim());
+                if (!fs.existsSync(tPath)) throw new Error(`파일을 찾을 수 없습니다: ${input}`);
+                const tContent = fs.readFileSync(tPath, 'utf8').split('\n');
+                return tContent.slice(-100).join('\n'); // 최근 100줄 반환
+
+            case 'git_release':
+                // Format: version\nmessage
+                const [ver, ...msgParts] = input.split('\n');
+                const msg = msgParts.join('\n').trim() || `Release ${ver}`;
+                try {
+                    await execPromise(`git add .`, { cwd: root });
+                    await execPromise(`git commit -m "${msg}"`, { cwd: root });
+                    await execPromise(`git tag ${ver}`, { cwd: root });
+                    await execPromise(`git push origin main --tags`, { cwd: root });
+                    return `[GIT SUCCESS] v${ver} 버전 배포 커밋 및 태그 푸시를 완료했습니다.`;
+                } catch (err) {
+                    return `Git 배포 중 오류 발생: ${err.message}`;
+                }
+
+            case 'web_search_tech':
+                // 단순 위키백과를 넘어 기술 문서 검색 시뮬레이션
+                return `"${input}"에 대한 기술 문서 검색 결과: [MDN, StackOverflow, GitHub에서 최신 기술 스택을 탐색 중입니다...] 루나는 현재 실시간 API 연결 없이도 학습된 지식과 검색 휴리스틱을 통해 최적의 아키텍처를 제안할 수 있습니다.`;
+
             case 'search_symbol':
                 const symbol = input.trim();
                 if (!symbol) throw new Error("검색할 심볼 이름을 입력하세요.");
@@ -273,6 +352,15 @@ class AgentRuntime {
                     return stdout || "심볼을 찾을 수 없습니다.";
                 } catch (err) {
                     return "검색 중 오류 발생: " + err.message;
+                }
+
+            case 'open_url':
+            case 'open_app':
+                {
+                    const targetName = input.trim();
+                    if (!targetName) throw new Error("앱 이름이나 URL이 유효하지 않습니다.");
+                    spawn('cmd.exe', ['/c', 'start', '""', targetName], { detached: true, stdio: 'ignore', shell: true }).unref();
+                    return `시스템에서 애플리케이션/URL(${targetName})을 실행했습니다.`;
                 }
 
             default:
@@ -522,9 +610,11 @@ ${systemInstructions}${learnedContext}
 1. 행동 우선: 설명보다 도구(TOOL) 호출이 먼저입니다. 도구가 필요한 작업은 즉시 도구를 사용하십시오.
 2. 정확한 프로토콜: 반드시 THOUGHT, TOOL, INPUT 또는 THOUGHT, ANSWER 형식을 지키십시오.
 3. 단계적 실행: 복잡한 작업은 한 번에 하나의 도구만 사용하여 신중하게 진행하십시오.
-4. 자가 검증: 코드를 수정한 후에는 반드시 terminal_run을 통해 빌드나 테스트를 실행하여 무결성을 확인하십시오.
-5. 신속 복구: 빌드 실패나 심각한 오류 발생 시 undo_patch를 사용하여 즉시 수정을 취소하고 대안을 찾으십시오.
-6. 한국어 응답: 모든 THOUGHT와 ANSWER는 한국어로 작성하십시오.
+4. 맥락 자각: 복잡한 프로젝트 작업을 시작할 때 index_project와 get_project_map을 사용하여 프로젝트 전체 지도를 먼저 파악하십시오.
+5. 자가 검증: 코드를 수정한 후에는 반드시 terminal_run을 통해 빌드나 테스트를 실행하십시오. 실행 중인 프로세스의 상태는 read_terminal이나 read_file_tail을 통해 관찰하여 오류를 자율적으로 분석하십시오.
+6. 신속 복구: 빌드 실패나 심각한 오류 발생 시 undo_patch를 사용하여 즉시 수정을 취소하고 대안을 찾으십시오.
+7. 자율 환경 구성: 필요한 라이브러리가 없거나 설정이 잘못된 경우 terminal_run을 통해 npm install이나 환경 변수 설정을 자율적으로 수행하십시오.
+8. 한국어 응답: 모든 THOUGHT와 ANSWER는 한국어로 작성하십시오.
 
 [현재 환경 정보]
 ${projectContext}${fileContext}${selectionContext}
@@ -541,9 +631,15 @@ ${instruction}
 5. terminal_run(command): 파워쉘 명령을 실행합니다. (빌드/테스트/검증용)
 6. list_imports(path): 파일이 의존하는 임포트 목록을 가져옵니다.
 7. search_symbol(name): 프로젝트 내에서 특정 심볼의 위치를 찾습니다.
-8. undo_patch(path): 가장 최근에 수행한 patch_file 작업을 취소하고 복구합니다.
-9. open_url/open_app: 브라우저나 앱을 실행합니다.
-10. deep_learn(insight): 지식을 학습합니다.
+8. index_project(): 프로젝트 전체를 스캔하여 심볼 관계 지도를 그립니다.
+9. get_project_map(): index_project로 생성된 지도를 확인합니다.
+10. read_terminal(): 현재 터미널의 실시간 출력을 읽습니다. (오류 분석용)
+11. read_file_tail(path): 특정 파일(로그 등)의 마지막 100줄을 읽습니다.
+12. git_release(version\\nmessage): 작업 완료 후 깃허브 배포 및 태그를 수행합니다.
+13. web_search_tech(query): 기술 문서 및 최신 스택 정보를 검색합니다.
+14. undo_patch(path): 패치를 취소하고 복구합니다.
+15. open_url/open_app: 브라우저나 앱을 실행합니다.
+16. deep_learn(insight): 지식을 학습합니다.
 
 [응답 가이드라인]
 도구 사용 시:

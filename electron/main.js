@@ -22,6 +22,8 @@ function isAdmin() {
 let mainWindow;
 let chatWindows = []; // 분리된 채팅 창들
 let ptyProcess;
+let terminalBuffer = ""; // 터미널 출력 버퍼
+const MAX_BUFFER_SIZE = 50000; // 최대 버퍼 크기
 const agentRuntime = new AgentRuntime();
 let llmHealthInterval = null;
 let lastLLMConnected = null;
@@ -754,17 +756,29 @@ ipcMain.handle('check-updates-now', async () => {
     }
     lastUpdateCheckedAt = new Date().toISOString();
     sendUpdateStatus({ state: 'checking' });
-    // Use checkForUpdates so we can return a deterministic result message
-    const result = await autoUpdater.checkForUpdates();
-    const info = result?.updateInfo;
-    if (info?.version) {
-      // update-available / update-not-available events will still fire
-      return { success: true, message: `Checked. Latest: v${info.version}` };
+
+    // checkForUpdatesAndNotify를 사용하면 업데이트가 있을 시 알림창까지 자동으로 연동됩니다.
+    // 또한 응답으로 받는 result를 통해 명확한 피드백을 renderer에 돌려줍니다.
+    const result = await autoUpdater.checkForUpdatesAndNotify();
+
+    if (!result) {
+      return { success: true, message: 'Update check completed (No response).' };
     }
-    return { success: true, message: 'Checked for updates.' };
+
+    const info = result.updateInfo;
+    const currentVer = app.getVersion();
+    const latestVer = info.version;
+
+    if (latestVer === currentVer) {
+      return { success: true, message: `Up to date (v${currentVer})` };
+    }
+
+    return { success: true, message: `New version v${latestVer} found. Starting download...` };
   } catch (e) {
-    sendUpdateStatus({ state: 'error', message: e?.message || String(e) });
-    return { success: false, message: e?.message || String(e) };
+    const errorMsg = e?.message || String(e);
+    log.error('[autoUpdate] Manual check failed:', errorMsg);
+    sendUpdateStatus({ state: 'error', message: errorMsg });
+    return { success: false, message: `Check failed: ${errorMsg}` };
   }
 });
 
@@ -893,11 +907,15 @@ function setupPowerShell() {
     });
 
     ptyProcess.stdout.on('data', (data) => {
-      if (mainWindow) mainWindow.webContents.send('terminal-data', data.toString());
+      const str = data.toString();
+      terminalBuffer = (terminalBuffer + str).slice(-MAX_BUFFER_SIZE);
+      if (mainWindow) mainWindow.webContents.send('terminal-data', str);
     });
 
     ptyProcess.stderr.on('data', (data) => {
-      if (mainWindow) mainWindow.webContents.send('terminal-data', data.toString());
+      const str = data.toString();
+      terminalBuffer = (terminalBuffer + str).slice(-MAX_BUFFER_SIZE);
+      if (mainWindow) mainWindow.webContents.send('terminal-data', str);
     });
 
     ipcMain.on('terminal-input', (event, input) => {
@@ -986,4 +1004,8 @@ ipcMain.on('clipboard-write', (event, text) => {
 
 ipcMain.handle('clipboard-read', () => {
   return clipboard.readText();
+});
+
+ipcMain.handle('read-terminal-buffer', () => {
+  return terminalBuffer;
 });
