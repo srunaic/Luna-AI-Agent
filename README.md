@@ -16,7 +16,7 @@
 ## 정식 version 
 - token 500
 - AI Agent SD 캐릭터 음성인식 개발 중
-- pro 버전 개발중
+- pro 버전 개발완료 현재 draft 최종 테스트 중
 
 
 ## Demo 버전 실행 시 주의사항
