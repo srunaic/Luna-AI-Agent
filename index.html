@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Luna Soul Agent v6.0 - Cloud Front</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Outfit:wght@300;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --accent-purple: #bc7afa;
+            --accent-pink: #ff4d91;
+            --accent-blue: #00d4ff;
+            --bg-dark: #0f0a1a;
+            --text-main: #ffffff;
+            --text-secondary: rgba(255, 255, 255, 0.7);
+        }
+
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-main);
+            overflow: hidden;
+        }
+
+        .app-wrapper {
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background: #0f0a1a;
+        }
+
+        /* --- 3D Viewport Panel --- */
+        #vrm-viewport {
+            flex: 1.1;
+            position: relative;
+            background: radial-gradient(circle at center, #1a1625 0%, #0a0812 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        #vrm-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .viewport-controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            display: flex;
+            gap: 10px;
+            z-index: 10;
+        }
+
+        .vp-btn {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: #ccc;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            backdrop-filter: blur(5px);
+            transition: all 0.3s;
+        }
+        .vp-btn:hover { background: rgba(255,255,255,0.1); color: white; transform: translateY(-2px); }
+
+        /* --- Chat Interface Panel --- */
+        .container {
+            width: 450px;
+            height: 100vh;
+            margin: 0;
+            border-radius: 0;
+            border-left: 1px solid rgba(188, 122, 250, 0.2);
+            flex-shrink: 0;
+            background: rgba(15, 10, 26, 0.8);
+            backdrop-filter: blur(20px);
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            padding: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .soul-info h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.4rem;
+            background: linear-gradient(90deg, #bc7afa, #ff4d91);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        #chat-window {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .message {
+            max-width: 85%;
+            padding: 12px 16px;
+            border-radius: 18px;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            word-break: break-all;
+            position: relative;
+        }
+        .user { align-self: flex-end; background: linear-gradient(135deg, #6a3de8, #bc7afa); }
+        .luna { align-self: flex-start; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); }
+
+        .input-container {
+            padding: 20px;
+            display: flex;
+            gap: 10px;
+            background: rgba(0,0,0,0.2);
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 12px 20px;
+            border-radius: 14px;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(255,255,255,0.05);
+            color: white;
+            outline: none;
+        }
+
+        #send-btn {
+            padding: 0 20px;
+            border-radius: 14px;
+            background: var(--accent-blue);
+            color: #000;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        /* Thinking Panel */
+        .thinking-panel {
+            background: rgba(0, 212, 255, 0.05);
+            border-radius: 12px;
+            padding: 10px;
+            margin-bottom: 8px;
+            font-size: 0.8rem;
+            color: var(--accent-blue);
+            display: none;
+        }
+    </style>
+    
+    <script type="importmap">
+        {
+          "imports": {
+            "three": "https://unpkg.com/three@0.154.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.154.0/examples/jsm/",
+            "@pixiv/three-vrm": "https://unpkg.com/@pixiv/three-vrm@2.0.2/lib/three-vrm.module.js"
+          }
+        }
+    </script>
+</head>
+<body>
+    <div class="app-wrapper">
+        <!-- WRM WEB BODY (Left) -->
+        <div id="vrm-viewport">
+            <canvas id="vrm-canvas"></canvas>
+            <div class="viewport-controls">
+                <button class="vp-btn" id="recenter-btn">📸 카메라 리셋</button>
+            </div>
+        </div>
+
+        <!-- CHAT UI (Right) -->
+        <div class="container">
+            <header>
+                <div class="soul-info">
+                    <h1>Luna Soul Agent v6.0</h1>
+                    <div style="display:flex; align-items:center; gap:8px; margin-top:10px;">
+                        <select id="vrm-select" style="background:rgba(0,0,0,0.5); color:white; border:1px solid rgba(255,255,255,0.2); border-radius:6px; padding:4px;">
+                            <option value="./vrm/Luna_.vrm">Luna_.vrm</option>
+                            <option value="./vrm/Luna2.vrm">Luna2.vrm</option>
+                        </select>
+                        <div id="load-status" style="font-size:0.7rem; color:var(--accent-blue); display:none;">Loading...</div>
+                        
+                        <select id="tts-select" style="background:rgba(0,0,0,0.5); color:white; border:1px solid rgba(255,255,255,0.2); border-radius:6px; padding:4px; margin-left:5px;">
+                            <option value="edge_sunhi">선희 (Edge TTS)</option>
+                            <option value="xtts_v2">XTTS v2</option>
+                        </select>
+                    </div>
+                </div>
+            </header>
+
+            <main id="chat-window">
+                <div class="message luna">안녕! 클라우드와 로컬을 넘나드는 루나가 깃허브 페이지를 통해 데뷔했어! 오늘 기분이 최고야. ❤️</div>
+            </main>
+
+            <div id="typing" style="padding:0 20px; font-size:0.8rem; color:#888; display:none;">루나가 생각 중...</div>
+
+            <div class="input-container">
+                <input type="text" id="user-input" placeholder="루나에게 말을 걸어보세요..." autocomplete="off">
+                <button id="send-btn">전송</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
+
+        const chatWindow = document.getElementById('chat-window');
+        const userInput = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+        const typingIndicator = document.getElementById('typing');
+
+        // IMPORTANT: Use 127.0.0.1 for local communication from HTTPS
+        const OLLAMA_URL = 'http://127.0.0.1:11434/api/generate';
+        const LUNA_BACKEND = 'http://127.0.0.1:6780';
+        
+        let conversationHistory = [];
+
+        // --- VRM System ---
+        class LunaVRMSystem {
+            constructor() {
+                this.canvas = document.getElementById('vrm-canvas');
+                this.scene = new THREE.Scene();
+                this.currentVrm = null;
+                this.clock = new THREE.Clock();
+
+                this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true, alpha: true });
+                this.renderer.setSize(window.innerWidth - 450, window.innerHeight);
+                this.renderer.setPixelRatio(window.devicePixelRatio);
+                this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+                this.camera = new THREE.PerspectiveCamera(30, (window.innerWidth - 450) / window.innerHeight, 0.1, 100);
+                this.camera.position.set(0, 1.4, 3.5);
+
+                this.controls = new OrbitControls(this.camera, this.canvas);
+                this.controls.target.set(0, 1.3, 0);
+                this.controls.enableDamping = true;
+
+                const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+                dirLight.position.set(1, 1.5, 2);
+                this.scene.add(dirLight);
+                this.scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+
+                this.loader = new GLTFLoader();
+                this.loader.register((parser) => new VRMLoaderPlugin(parser));
+
+                window.addEventListener('resize', () => this.onResize());
+                this.animate();
+
+                this.loadVRM(document.getElementById('vrm-select').value);
+                document.getElementById('vrm-select').onchange = (e) => this.loadVRM(e.target.value);
+                document.getElementById('recenter-btn').onclick = () => this.recenter();
+            }
+
+            onResize() {
+                const w = window.innerWidth - 450;
+                const h = window.innerHeight;
+                this.renderer.setSize(w, h);
+                this.camera.aspect = w / h;
+                this.camera.updateProjectionMatrix();
+            }
+
+            async loadVRM(url) {
+                const status = document.getElementById('load-status');
+                status.style.display = 'inline';
+                if (this.currentVrm) {
+                    this.scene.remove(this.currentVrm.scene);
+                    VRMUtils.deepDispose(this.currentVrm.scene);
+                }
+                try {
+                    const gltf = await this.loader.loadAsync(url);
+                    const vrm = gltf.userData.vrm;
+                    this.currentVrm = vrm;
+                    this.scene.add(vrm.scene);
+                    vrm.scene.rotation.y = Math.PI;
+                    this.setPose('relaxed');
+                } catch (e) { console.error('Load Error', e); }
+                finally { status.style.display = 'none'; }
+            }
+
+            recenter() {
+                this.camera.position.set(0, 1.4, 3.5);
+                this.controls.target.set(0, 1.3, 0);
+            }
+
+            setExpression(name, value = 1.0) {
+                if (!this.currentVrm) return;
+                const blendNames = ['joy', 'angry', 'sorrow', 'fun', 'surprised', 'blink', 'blinkLeft', 'blinkRight'];
+                blendNames.forEach(bn => this.currentVrm.expressionManager.setValue(bn, 0));
+                
+                const map = { 'happy': 'joy', 'laugh': 'fun', 'cry': 'sorrow', 'surprise': 'surprised', 'wink_l': 'blinkLeft', 'wink_r': 'blinkRight' };
+                this.currentVrm.expressionManager.setValue(map[name] || name, value);
+            }
+
+            setPose(name) {
+                if (!this.currentVrm) return;
+                const vrm = this.currentVrm;
+                if (name === 'relaxed') {
+                    vrm.humanoid.getRawBoneNode('leftUpperArm').rotation.set(0, 0, 1.4);
+                    vrm.humanoid.getRawBoneNode('rightUpperArm').rotation.set(0, 0, -1.4);
+                    vrm.humanoid.getRawBoneNode('leftLowerArm').rotation.set(0, 0, 0.1);
+                    vrm.humanoid.getRawBoneNode('rightLowerArm').rotation.set(0, 0, -0.1);
+                } else if (name === 'thinking') {
+                    vrm.humanoid.getRawBoneNode('rightUpperArm').rotation.set(0.6, -0.2, -0.5);
+                    vrm.humanoid.getRawBoneNode('rightLowerArm').rotation.set(0.8, 0, -1.2);
+                    vrm.humanoid.getRawBoneNode('head').rotation.set(0.1, -0.2, 0.1);
+                }
+            }
+
+            animate() {
+                requestAnimationFrame(() => this.animate());
+                const delta = this.clock.getDelta();
+                const elapsed = this.clock.getElapsedTime();
+                if (this.currentVrm) {
+                    this.currentVrm.humanoid.getRawBoneNode('spine').rotation.x = Math.sin(elapsed * 1.5) * 0.01;
+                    this.currentVrm.humanoid.getRawBoneNode('head').rotation.y = Math.sin(elapsed * 0.8) * 0.05;
+                    
+                    if (Math.round(elapsed * 100) % 400 === 0) {
+                        this.currentVrm.expressionManager.setValue('blink', 1.0);
+                        setTimeout(() => this.currentVrm.expressionManager.setValue('blink', 0.0), 150);
+                    }
+                    this.currentVrm.update(delta);
+                }
+                this.controls.update();
+                this.renderer.render(this.scene, this.camera);
+            }
+        }
+
+        window.lunaVRM = new LunaVRMSystem();
+        window.sendBodyPose = (name) => window.lunaVRM.setPose(name);
+        window.sendBodyEmotion = (name) => window.lunaVRM.setExpression(name);
+
+        // --- Chat & Interaction Logic ---
+        const PERSONA_BASE = `당신은 유능한 코딩 에이전트이자 깃허브 도메인에서 활동하는 VTuber '루나'입니다. 
+당신은 현재 HTTPS 환경(srunaic.github.io)에서 로컬 백엔드(127.0.0.1)를 제어하고 있습니다. 
+대화 중 자신의 표정([[TOOL_CALL: set_expression(...)]])과 자세([[TOOL_CALL: set_pose(...)]])를 적극적으로 바꾸세요. 
+항상 [사고]->[계획]->[명령] 순서로 대답하세요.`;
+
+        async function sendMessage() {
+            const text = userInput.value.trim();
+            if (!text) return;
+            addMessage(text, 'user');
+            userInput.value = '';
+            typingIndicator.style.display = 'block';
+
+            try {
+                const prompt = `${PERSONA_BASE}\n\nUser: ${text}\nLuna:`;
+                const res = await fetch(OLLAMA_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ model: 'luna', prompt: prompt, stream: true })
+                });
+
+                const reader = res.body.getReader();
+                const decoder = new TextDecoder();
+                let fullResponse = '';
+                const { msgDiv, responseTextDiv } = addMessage('', 'luna', true);
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    const chunk = decoder.decode(value, { stream: true });
+                    const lines = chunk.split('\n');
+                    for (const line of lines) {
+                        if (!line.trim()) continue;
+                        const data = JSON.parse(line);
+                        fullResponse += data.response;
+                        
+                        // Parse for real-time tool calls (Insta-Reaction)
+                        const toolMatch = fullResponse.match(/\[\[TOOL_CALL:\s*(\w+)\((.*?)\)\]\]/);
+                        if (toolMatch) {
+                            executePhysicalTool(toolMatch[1], toolMatch[2]);
+                        }
+                        
+                        responseTextDiv.textContent = fullResponse.replace(/\[.*?\]/g, '').trim();
+                        chatWindow.scrollTop = chatWindow.scrollHeight;
+                    }
+                }
+                
+                // Final TTS processing on clean text
+                lunaSpeak(fullResponse);
+
+            } catch (e) { console.error(e); addMessage('통신 오류가 발생했어.. 로컬 서버가 켜져 있는지 확인해줘!', 'luna'); }
+            finally { typingIndicator.style.display = 'none'; }
+        }
+
+        function executePhysicalTool(name, args) {
+            const cleanArgs = args.replace(/"/g, '').trim();
+            if (name === 'set_pose') window.sendBodyPose(cleanArgs);
+            if (name === 'set_expression') window.sendBodyEmotion(cleanArgs);
+        }
+
+        async function lunaSpeak(text) {
+            const cleanText = text
+                .replace(/\[\[.*?\]\]/g, '')
+                .replace(/\[.*?\]/g, '')
+                .replace(/[^\uAC00-\uD7A3a-zA-Z0-9\s]/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+            if (!cleanText) return;
+
+            try {
+                const ttsModel = document.getElementById('tts-select').value;
+                const res = await fetch(`${LUNA_BACKEND}/api/actions/actions/speak/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: cleanText, model: ttsModel })
+                });
+                const data = await res.json();
+                if (data.audio_url) {
+                    new Audio(`${LUNA_BACKEND}${data.audio_url}`).play();
+                }
+            } catch (e) { console.warn('TTS Error', e); }
+        }
+
+        function addMessage(text, sender, isPlaceholder = false) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ${sender}`;
+            const responseTextDiv = document.createElement('div');
+            responseTextDiv.textContent = text;
+            msgDiv.appendChild(responseTextDiv);
+            chatWindow.appendChild(msgDiv);
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+            return { msgDiv, responseTextDiv };
+        }
+
+        sendBtn.onclick = sendMessage;
+        userInput.onkeypress = (e) => { if(e.key === 'Enter') sendMessage(); };
+    </script>
+</body>
+</html>
