@@ -35,6 +35,8 @@ from luna_agent_watcher import (
     handle_self_diagnostic, handle_run_command
 )
 
+from luna_knowledge_core import KnowledgeDistiller, CodeCreationEngine
+
 # ============================================================
 #  설정
 # ============================================================
@@ -84,6 +86,7 @@ class GoalManager:
     
     def __init__(self):
         self.goals = []
+        self.interests = []
         self.completed_count = 0
         self.failed_count = 0
         self.evolution_level = 1
@@ -97,6 +100,7 @@ class GoalManager:
                 with open(GOAL_QUEUE_PATH, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                 self.goals = data.get("goals", [])
+                self.interests = data.get("interests", [])
                 self.completed_count = data.get("completed_count", 0)
                 self.failed_count = data.get("failed_count", 0)
                 self.evolution_level = data.get("evolution_level", 1)
@@ -109,7 +113,8 @@ class GoalManager:
     def save(self):
         """목표 큐를 파일에 저장"""
         data = {
-            "version": 1,
+            "version": 2,
+            "interests": self.interests,
             "goals": self.goals,
             "completed_count": self.completed_count,
             "failed_count": self.failed_count,
@@ -189,18 +194,32 @@ class GoalManager:
         return max_id + 1
     
     def _generate_new_goals(self):
-        """AI가 스스로 새 목표 생성"""
-        # 기본 주기적 목표 재생성
-        templates = [
-            ("MAINTAIN", "CRITICAL", "시스템 건강 상태 정기 점검"),
-            ("REPAIR", "HIGH", "코드 무결성 정기 검사 및 자동 수리"),
-            ("LEARN", "MEDIUM", f"새로운 기술 트렌드 학습 (사이클 #{self.total_cycles})"),
-            ("MAINTAIN", "MEDIUM", "디스크 공간 및 리소스 최적화 점검"),
-            ("IMPROVE", "LOW", "자율 학습 효율 자기 평가 및 개선"),
-        ]
+        """관심 주제 기반으로 새 목표 자동 생성"""
+        # 1. 시스템 유지보수 (항상)
+        self.add_goal("MAINTAIN", "CRITICAL", "시스템 건강 상태 정기 점검")
+        self.add_goal("REPAIR", "HIGH", "코드 무결성 정기 검사 및 자동 수리")
         
-        for t, p, d in templates:
-            self.add_goal(t, p, d)
+        # 2. 관심 주제별 학습 목표 생성
+        if self.interests:
+            # 관심 주제 중 랜덤으로 3~5개 선택하여 깊이 있는 목표 생성
+            import random
+            selected = random.sample(self.interests, min(4, len(self.interests)))
+            
+            depth_keywords = [
+                "최신 동향 검색", "핵심 개념 정리", "실전 사례 분석",
+                "입문자를 위한 기초 학습", "고급 기법 탐구", "관련 도구 조사",
+                "성공 사례 분석", "비교 분석", "실무 적용 방법 학습"
+            ]
+            
+            for interest in selected:
+                depth = random.choice(depth_keywords)
+                self.add_goal("LEARN", "HIGH", f"{interest} — {depth} (사이클 #{self.total_cycles})")
+        else:
+            self.add_goal("LEARN", "MEDIUM", f"새로운 기술 트렌드 학습 (사이클 #{self.total_cycles})")
+        
+        # 3. 주기적 자기 개선
+        self.add_goal("MAINTAIN", "MEDIUM", "디스크 공간 및 리소스 최적화 점검")
+        self.add_goal("IMPROVE", "LOW", "자율 학습 효율 자기 평가 및 개선 — 지금까지 배운 지식 종합")
     
     def _check_level_up(self):
         """진화 레벨 체크"""
@@ -441,6 +460,8 @@ class LunaEvolutionEngine:
         self.goal_manager = GoalManager()
         self.repair_engine = SelfRepairEngine()
         self.maintainer = SystemMaintainer()
+        self.distiller = KnowledgeDistiller()
+        self.code_engine = CodeCreationEngine()
         self.cycle_count = 0
         
         # 코더 모델 감지
@@ -509,6 +530,24 @@ class LunaEvolutionEngine:
         )
         
         self.goal_manager.save()
+        
+        # 7. 지식 증류 (10사이클마다)
+        if self.cycle_count % 10 == 0:
+            print("\n  🧪 Phase 5: KNOWLEDGE DISTILLATION")
+            try:
+                self.distiller.distill()
+                stats = self.distiller.get_stats()
+                print(f"  증류 완료! 카테고리: {stats['categories_filled']}")
+            except Exception as e:
+                print(f"  ⚠️ 증류 실패: {str(e)[:60]}")
+        
+        # 8. Modelfile 자동 갱신 (50사이클마다 = 지식 주입 파인튜닝)
+        if self.cycle_count % 50 == 0 and self.cycle_count > 0:
+            print("\n  🎯 Phase 6: SELF-FINE-TUNING (Modelfile Update)")
+            try:
+                self.distiller.update_modelfile()
+            except Exception as e:
+                print(f"  ⚠️ 파인튜닝 실패: {str(e)[:60]}")
     
     def _observe(self):
         """현재 시스템 상태 관찰"""
@@ -552,6 +591,8 @@ class LunaEvolutionEngine:
                 return self._execute_learn(description)
             elif goal_type == "IMPROVE":
                 return self._execute_improve(description)
+            elif goal_type == "CREATE":
+                return self._execute_create(description)
             else:
                 return self._execute_with_ai(description)
         except Exception as e:
@@ -707,6 +748,39 @@ JSON 형식: {{"thought": "생각", "tool": "도구명", "args": "인자"}}""",
             return True, f"자기 분석 완료:\n{analysis}"
         
         return True, f"현재 상태: Level {status['evolution_level']}, {status['completed_total']}개 목표 완료"
+    
+    def _execute_create(self, description):
+        """새 코드/기능 창작"""
+        print(f"  🎨 코드 창작 모드: {description}")
+        
+        # AI에게 파일명과 설명 결정하게 함
+        plan = self._ask_ai(
+            f"""새로운 Python 모듈을 만들어야 합니다.
+요구사항: {description}
+
+JSON으로 답변하세요: {{"filename": "파일명.py", "description": "모듈 설명"}}""",
+            use_logical=True
+        )
+        
+        if not plan:
+            return False, "AI 응답 없음"
+        
+        try:
+            import re
+            match = re.search(r'\{[^}]+\}', plan)
+            if match:
+                data = json.loads(match.group())
+                filename = data.get("filename", "luna_new_module.py")
+                desc = data.get("description", description)
+                
+                success, msg = self.code_engine.create_module(filename, desc)
+                if success:
+                    handle_remember(f"[코드 창작] {filename}: {desc}")
+                return success, msg
+        except Exception as e:
+            return False, f"코드 창작 실패: {str(e)[:80]}"
+        
+        return False, "코드 창작 계획 파싱 실패"
     
     def _execute_with_ai(self, description):
         """범용 AI 기반 실행"""
