@@ -18,7 +18,8 @@ PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 OLLAMA_URL = "http://127.0.0.1:11434/api/generate"
 MEMORY_SEARCH_URL = "http://127.0.0.1:6780/api/memory/search/"
 KNOWLEDGE_CORE_PATH = os.path.join(PROJECT_ROOT, "luna_knowledge_core.json")
-MODELFILE_PATH = os.path.join(PROJECT_ROOT, "Luna-Modelfile")
+MODELFILE_CHAT_PATH = os.path.join(PROJECT_ROOT, "Luna-Modelfile-chat")
+MODELFILE_BRAIN_PATH = os.path.join(PROJECT_ROOT, "Luna-Modelfile")
 
 class KnowledgeDistiller:
     """
@@ -63,7 +64,7 @@ class KnowledgeDistiller:
         except:
             pass
     
-    def distill(self, model="luna"):
+    def distill(self, model="luna-brain"):
         """
         전체 기억에서 핵심 지식을 추출하여 카테고리별로 정리.
         이 과정을 '지식 증류(Knowledge Distillation)'라고 합니다.
@@ -169,63 +170,54 @@ class KnowledgeDistiller:
         return ""
     
     def update_modelfile(self):
-        """Modelfile에 핵심 지식을 주입하여 모델 업데이트 (자동 파인튜닝)"""
+        """양쪽 Modelfile에 핵심 지식을 주입하여 모델 업데이트 (자동 파인튜닝)"""
         knowledge = self.get_knowledge_prompt()
         if not knowledge or len(knowledge) < 50:
             print("  ⚠️ 아직 지식이 충분하지 않아 Modelfile 업데이트 건너뜀")
             return False
         
-        try:
-            with open(MODELFILE_PATH, 'r', encoding='utf-8') as f:
-                content = f.read()
-            
-            # [축적된 핵심 지식] 섹션이 있으면 교체, 없으면 추가
-            if "[축적된 핵심 지식]" in content:
-                # 기존 지식 섹션 교체
-                import re
-                content = re.sub(
-                    r'\[축적된 핵심 지식\].*?(?=\[|PARAMETER|""")',
-                    knowledge.strip() + "\n\n",
-                    content,
-                    flags=re.DOTALL
+        success_count = 0
+        for modelfile_path, model_name in [(MODELFILE_CHAT_PATH, 'luna'), (MODELFILE_BRAIN_PATH, 'luna-brain')]:
+            try:
+                with open(modelfile_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                
+                if "[축적된 핵심 지식]" in content:
+                    import re
+                    content = re.sub(
+                        r'\[축적된 핵심 지식\].*?(?=\[|PARAMETER|""")',
+                        knowledge.strip() + "\n\n",
+                        content,
+                        flags=re.DOTALL
+                    )
+                else:
+                    parts = content.split('"""')
+                    if len(parts) >= 3:
+                        parts[1] = parts[1].rstrip() + f"\n\n{knowledge}\n"
+                        content = '"""'.join(parts)
+                
+                with open(modelfile_path, 'w', encoding='utf-8') as f:
+                    f.write(content)
+                
+                import subprocess
+                result = subprocess.run(
+                    ['ollama', 'create', model_name, '-f', modelfile_path],
+                    capture_output=True, text=True, timeout=60
                 )
-            else:
-                # SYSTEM 프롬프트의 끝 부분에 지식 삽입
-                content = content.replace(
-                    '"""',
-                    f'\n{knowledge}\n"""',
-                    1  # 첫 번째 """만 (SYSTEM 시작)은 건드리지 않음
-                )
-                # 두 번째 """(닫는 따옴표) 앞에 삽입되도록 수정
-                parts = content.split('"""')
-                if len(parts) >= 3:
-                    # parts[0] = FROM...\nSYSTEM
-                    # parts[1] = 시스템 프롬프트 내용
-                    # parts[2] = PARAMETER...
-                    parts[1] = parts[1].rstrip() + f"\n\n{knowledge}\n"
-                    content = '"""'.join(parts)
-            
-            with open(MODELFILE_PATH, 'w', encoding='utf-8') as f:
-                f.write(content)
-            
-            # Ollama 모델 재생성
-            import subprocess
-            result = subprocess.run(
-                ['ollama', 'create', 'luna', '-f', MODELFILE_PATH],
-                capture_output=True, text=True, timeout=60
-            )
-            
-            if result.returncode == 0:
-                print("  🎯 Modelfile 업데이트 + 모델 재생성 완료!")
-                print("     루나의 두뇌가 축적된 지식과 함께 업그레이드되었습니다!")
-                return True
-            else:
-                print(f"  ⚠️ 모델 재생성 실패: {result.stderr[:100]}")
-                return False
-            
-        except Exception as e:
-            print(f"  ⚠️ Modelfile 업데이트 실패: {str(e)[:80]}")
-            return False
+                
+                if result.returncode == 0:
+                    print(f"  ✅ {model_name} 모델 업데이트 완료!")
+                    success_count += 1
+                else:
+                    print(f"  ⚠️ {model_name} 재생성 실패: {result.stderr[:80]}")
+                
+            except Exception as e:
+                print(f"  ⚠️ {model_name} 업데이트 실패: {str(e)[:60]}")
+        
+        if success_count > 0:
+            print(f"  🎯 {success_count}개 모델에 지식 주입 완료!")
+            return True
+        return False
     
     def get_stats(self):
         """증류 시스템 상태"""
@@ -253,7 +245,7 @@ class CodeCreationEngine:
         self.backup = backup_file
         self.is_path_safe = is_path_safe
     
-    def create_module(self, filename, description, model="luna"):
+    def create_module(self, filename, description, model="luna-brain"):
         """AI에게 Python 모듈을 작성하게 함"""
         if not filename.endswith('.py'):
             filename += '.py'

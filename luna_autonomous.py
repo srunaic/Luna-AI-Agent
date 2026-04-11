@@ -46,13 +46,13 @@ BACKEND_MEMORY_URL = "http://127.0.0.1:6780/api/memory/upsert/"
 GOAL_QUEUE_PATH = os.path.join(PROJECT_ROOT, "luna_goal_queue.json")
 
 # 자율 사이클 주기 (초)
-CYCLE_MIN = 30
-CYCLE_MAX = 90
+CYCLE_MIN = 3
+CYCLE_MAX = 3
 
-# 감성 브레인 (대화/일반)
+# 감성 브레인 (대화/요약 — 빠른 gemma2:9b)
 BRAIN_EMOTIONAL = "luna"
-# 논리 브레인 (코딩/분석) — 없으면 감성 브레인 사용
-BRAIN_LOGICAL = "luna"
+# 논리 브레인 (자율학습/코드/분석 — 깊은 gemma3:27b)
+BRAIN_LOGICAL = "luna-brain"
 
 # ============================================================
 #  듀얼 브레인 감지
@@ -678,18 +678,25 @@ JSON 형식: {{"thought": "생각", "tool": "도구명", "args": "인자"}}""",
         print(f"  💭 루나의 생각: {thought}")
         print(f"  🔧 선택한 도구: {tool}({args})")
         
-        # 도구 실행
+        # 도구 실행 (알 수 없는 도구면 웹검색으로 폴백)
         success, result = False, ""
-        if tool == "search_web":
+        tool = tool.strip().lower().replace('"', '').replace("'", "")
+        
+        if tool in ("search_web", "web_search", "search"):
             success, result = handle_search_web(args)
-        elif tool == "list_files":
+        elif tool in ("list_files", "list_dir", "ls"):
             success, result = handle_list_files(args, PROJECT_ROOT)
-        elif tool == "read_file":
+        elif tool in ("read_file", "read", "open_file"):
             success, result = handle_read_file(args, PROJECT_ROOT)
-        elif tool == "check_environment":
+        elif tool in ("check_environment", "check_env", "system_info"):
             success, result = handle_check_environment()
+        elif tool in ("search_memory", "remember", "recall", "memory"):
+            success, result = handle_search_memory(args)
         else:
-            return False, f"알 수 없는 도구: {tool}"
+            # 폴백: 목표 설명으로 웹 검색 (실패 방지)
+            print(f"  ⚠️ 알 수 없는 도구 '{tool}' → 웹 검색으로 폴백")
+            search_query = args if args else description[:50]
+            success, result = handle_search_web(search_query)
         
         if success:
             # 결과를 AI에게 요약 요청 후 기억에 저장

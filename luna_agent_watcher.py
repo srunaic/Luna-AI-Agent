@@ -448,6 +448,70 @@ def handle_self_diagnostic():
     return True, report
 
 # ============================================================
+#  v8 채팅 연동 핸들러
+# ============================================================
+
+def handle_add_goal(raw_args):
+    """채팅에서 학습 목표를 자율학습 큐에 추가"""
+    print(f"   [Execute] Adding goal to queue: {raw_args}")
+    try:
+        args = json.loads(raw_args) if raw_args.startswith('{') else {"topic": raw_args}
+        topic = args.get('topic', raw_args)
+        goal_type = args.get('type', 'LEARN')
+        priority = args.get('priority', 'HIGH')
+        
+        # 직접 goal_queue.json에 추가
+        queue_path = os.path.join(PROJECT_ROOT, 'luna_goal_queue.json')
+        with open(queue_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        goals = data.get('goals', [])
+        max_id = max([g.get('id', 0) for g in goals], default=0)
+        
+        import datetime
+        new_goal = {
+            'id': max_id + 1,
+            'type': goal_type,
+            'priority': priority,
+            'description': topic,
+            'status': 'pending',
+            'attempts': 0,
+            'created_at': datetime.datetime.now().isoformat()
+        }
+        goals.append(new_goal)
+        data['goals'] = goals
+        
+        with open(queue_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        
+        return True, f"✅ 학습 목표 추가 완료! (ID: {max_id + 1})\n📋 {goal_type} [{priority}]: {topic}\n자율 학습 엔진이 이 목표를 자동으로 처리합니다."
+    except Exception as e:
+        return False, f"목표 추가 실패: {str(e)}"
+
+def handle_add_interest(raw_args):
+    """관심 주제를 interests 목록에 추가"""
+    print(f"   [Execute] Adding interest: {raw_args}")
+    try:
+        args = json.loads(raw_args) if raw_args.startswith('{') else {"interest": raw_args}
+        interest = args.get('interest', raw_args)
+        
+        queue_path = os.path.join(PROJECT_ROOT, 'luna_goal_queue.json')
+        with open(queue_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        interests = data.get('interests', [])
+        if interest not in interests:
+            interests.append(interest)
+            data['interests'] = interests
+            with open(queue_path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            return True, f"✅ 관심 주제 추가 완료: {interest}\n이제 자율 학습 시 이 주제도 반영됩니다."
+        else:
+            return True, f"ℹ️ 이미 관심 주제에 포함되어 있어요: {interest}"
+    except Exception as e:
+        return False, f"관심 주제 추가 실패: {str(e)}"
+
+# ============================================================
 #  명령 디스패처
 # ============================================================
 
@@ -538,6 +602,11 @@ def execute_action(action):
             success, result_text = handle_install_package(command_arg)
         elif tool == "self_diagnostic":
             success, result_text = handle_self_diagnostic()
+        # v8 채팅 연동 도구
+        elif tool == "add_goal":
+            success, result_text = handle_add_goal(command_arg)
+        elif tool == "add_interest":
+            success, result_text = handle_add_interest(command_arg)
         else:
             success = False
             result_text = f"Unknown tool requested: {tool}"

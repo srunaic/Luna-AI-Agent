@@ -117,6 +117,40 @@
             transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0, 212, 255, 0.3);
         }
 
+        /* --- Image Preview & Upload --- */
+        .image-preview-container {
+            display: none; padding: 10px 20px; background: rgba(0, 0, 0, 0.3);
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            align-items: center; gap: 10px;
+        }
+        .preview-box {
+            position: relative; width: 60px; height: 60px;
+            border-radius: 8px; overflow: hidden; border: 1px solid var(--accent-purple);
+        }
+        .preview-box img { width: 100%; height: 100%; object-fit: cover; }
+        .remove-img {
+            position: absolute; top: 0; right: 0; background: rgba(255, 77, 145, 0.8);
+            color: white; border: none; font-size: 10px; padding: 2px 5px; cursor: pointer;
+        }
+        #attach-btn {
+            background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #ddd; width: 45px; height: 45px; border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; transition: all 0.3s; font-size: 1.2rem;
+        }
+        #attach-btn:hover { background: rgba(188, 122, 250, 0.2); color: var(--accent-purple); }
+
+        /* --- Action Execution UI --- */
+        .action-msg { background: rgba(0, 212, 255, 0.08); border: 1px solid rgba(0, 212, 255, 0.2); border-radius: 12px; padding: 10px 14px; margin: 5px 0; font-size: 0.8rem; }
+        .action-msg .action-header { color: var(--accent-blue); font-weight: 600; margin-bottom: 4px; }
+        .action-msg .action-result { color: #aaa; white-space: pre-wrap; max-height: 200px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 0.75rem; }
+        .action-msg.success { border-color: #00ff8855; }
+        .action-msg.success .action-header { color: #00ff88; }
+        .action-msg.failed { border-color: #ff4d9155; }
+        .action-msg.failed .action-header { color: #ff4d91; }
+        .action-spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid rgba(0, 212, 255, 0.3); border-top-color: var(--accent-blue); border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 6px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
         /* --- Evolution Dashboard Panel --- */
         #evo-dashboard {
             background: rgba(0, 0, 0, 0.3); border-top: 1px solid rgba(188, 122, 250, 0.15);
@@ -251,8 +285,18 @@
             <div id="memory-hint">루나의 추억 회상 중... ❤️</div>
             <div id="typing" style="padding:0 20px; font-size:0.8rem; color:#888; display:none;">루나가 생각 중...</div>
 
+            <div class="image-preview-container" id="image-preview-container">
+                <div class="preview-box">
+                    <img id="image-preview-img" src="">
+                    <button class="remove-img" id="remove-image-btn">×</button>
+                </div>
+                <div style="font-size: 0.7rem; color: #888;">이미지가 첨부됨 (LLaVA 가동)</div>
+            </div>
+
             <div class="input-container">
-                <input type="text" id="user-input" placeholder="루나에게 말을 걸어보세요..." autocomplete="off">
+                <input type="file" id="image-input" style="display:none" accept="image/*">
+                <button id="attach-btn" title="이미지 첨부 (또는 붙여넣기)">📎</button>
+                <input type="text" id="user-input" placeholder="말을 걸거나 이미지를 붙여넣어주세요..." autocomplete="off">
                 <button id="send-btn">전송</button>
             </div>
         </div>
@@ -276,6 +320,42 @@
         const LUNA_BACKEND = 'http://127.0.0.1:6780';
         
         let isAutonomousActive = false;
+        let stagedImage = null;
+
+        const imageInput = document.getElementById('image-input');
+        const attachBtn = document.getElementById('attach-btn');
+        const imagePreviewContainer = document.getElementById('image-preview-container');
+        const imagePreviewImg = document.getElementById('image-preview-img');
+        const removeImageBtn = document.getElementById('remove-image-btn');
+
+        attachBtn.onclick = () => imageInput.click();
+        imageInput.onchange = (e) => { const file = e.target.files[0]; if (file) handleImageFile(file); };
+        
+        userInput.onpaste = (e) => {
+            const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].type.indexOf('image') !== -1) {
+                    const file = items[i].getAsFile();
+                    handleImageFile(file);
+                }
+            }
+        };
+
+        function handleImageFile(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                stagedImage = e.target.result.split(',')[1];
+                imagePreviewImg.src = e.target.result;
+                imagePreviewContainer.style.display = 'flex';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        removeImageBtn.onclick = () => {
+            stagedImage = null;
+            imageInput.value = '';
+            imagePreviewContainer.style.display = 'none';
+        };
 
         class LunaVRMSystem {
             constructor() {
@@ -288,7 +368,9 @@
                 this.camera = new THREE.PerspectiveCamera(30, (window.innerWidth - 500) / window.innerHeight, 0.1, 100);
                 this.camera.position.set(0, 1.4, 3.5);
                 this.controls = new OrbitControls(this.camera, this.canvas);
-                this.targetRotations = { leftUpperArm: new THREE.Euler(0,0,1.35), rightUpperArm: new THREE.Euler(0,0,-1.35), head: new THREE.Euler(0,0,0) };
+                this.targetRotations = { leftUpperArm: new THREE.Euler(0,0,1.35), rightUpperArm: new THREE.Euler(0,0,-1.35), head: new THREE.Euler(0,0,0), spine: new THREE.Euler(0,0,0), hips: new THREE.Euler(0,0,0) };
+                this.motionOffsets = { leftUpperArm: new THREE.Euler(), rightUpperArm: new THREE.Euler(), head: new THREE.Euler(), spine: new THREE.Euler(), hips: new THREE.Euler() };
+                this.currentMotion = null; this.motionStartTime = 0;
                 const dl = new THREE.DirectionalLight(0xffffff, 0.5); dl.position.set(1, 1.5, 2); this.scene.add(dl);
                 this.scene.add(new THREE.AmbientLight(0xffffff, 0.4));
                 this.loader = new GLTFLoader(); this.loader.register((parser) => new VRMLoaderPlugin(parser));
@@ -316,22 +398,92 @@
             }
             setPose(name) {
                 if (!this.currentVrm) return;
-                if (name === 'relaxed') { this.targetRotations.leftUpperArm.set(0, 0, 1.35); this.targetRotations.rightUpperArm.set(0, 0, -1.35); }
-                else if (name === 'thinking') { this.targetRotations.rightUpperArm.set(0.6, -0.4, -0.5); }
+                if (name === 'relaxed') { this.targetRotations.leftUpperArm.set(0, 0, 1.35); this.targetRotations.rightUpperArm.set(0, 0, -1.35); this.targetRotations.head.set(0,0,0); }
+                else if (name === 'thinking') { this.targetRotations.rightUpperArm.set(0.6, -0.4, -0.5); this.targetRotations.head.set(0.2, 0.1, 0.05); }
+                else if (name === 'hands_behind') { this.targetRotations.leftUpperArm.set(-0.2, 0.2, 1.55); this.targetRotations.rightUpperArm.set(-0.2, -0.2, -1.55); }
             }
+
+            playMotion(name) {
+                if (!this.currentVrm) return;
+                this.currentMotion = name;
+                this.motionStartTime = this.clock.getElapsedTime();
+                console.log("Playing motion:", name);
+                if (name === 'greeting') this.setExpression('happy');
+            }
+
             animate() {
-                requestAnimationFrame(() => this.animate()); const delta = this.clock.getDelta(), elapsed = this.clock.getElapsedTime();
+                requestAnimationFrame(() => this.animate());
+                const delta = this.clock.getDelta();
+                const elapsed = this.clock.getElapsedTime();
+                
                 if (this.currentVrm) {
-                    const h = this.currentVrm.humanoid, lerp = 0.05;
-                    ['leftUpperArm', 'rightUpperArm', 'head'].forEach(bone => {
+                    const h = this.currentVrm.humanoid;
+                    const lerp = 0.05;
+
+                    // 1. 유기적 유휴 상태 (Organic Idle Noise)
+                    const breath = Math.sin(elapsed * 1.5) * 0.02;
+                    const swayY = Math.sin(elapsed * 0.5) * 0.03;
+                    const swayZ = Math.cos(elapsed * 0.8) * 0.02;
+
+                    // 2. 모션 클립 로직 (Procedural Motions)
+                    for (let b in this.motionOffsets) this.motionOffsets[b].set(0,0,0);
+                    
+                    if (this.currentMotion === 'greeting') {
+                        const mTime = elapsed - this.motionStartTime;
+                        if (mTime < 3.0) {
+                            // 오른손 흔들기
+                            this.motionOffsets.rightUpperArm.set(1.0, 0, -0.8 + Math.sin(mTime * 10) * 0.3);
+                        } else { this.currentMotion = null; }
+                    } else if (this.currentMotion === 'bow') {
+                        const mTime = elapsed - this.motionStartTime;
+                        if (mTime < 2.0) {
+                            const tilt = Math.sin(Math.min(mTime, 1.0) * Math.PI / 2) * 0.6;
+                            this.motionOffsets.spine.set(tilt, 0, 0);
+                            this.motionOffsets.head.set(tilt * 0.5, 0, 0);
+                        } else { this.currentMotion = null; }
+                    } else if (this.currentMotion === 'shy_heart') {
+                        const mTime = elapsed - this.motionStartTime;
+                        if (mTime < 4.0) {
+                            this.motionOffsets.leftUpperArm.set(0.8, 0.4, 0.5);
+                            this.motionOffsets.rightUpperArm.set(0.8, -0.4, -0.5);
+                            this.motionOffsets.head.set(0.1, Math.sin(mTime * 2) * 0.1, 0.05);
+                        } else { this.currentMotion = null; }
+                    }
+
+                    // 3. 결합 및 적용 (Target + Motion + Noise)
+                    ['leftUpperArm', 'rightUpperArm', 'head', 'spine', 'hips'].forEach(bone => {
                         const node = h.getNormalizedBoneNode(bone);
-                        if (node) { node.rotation.x = THREE.MathUtils.lerp(node.rotation.x, this.targetRotations[bone].x, lerp); node.rotation.y = THREE.MathUtils.lerp(node.rotation.y, this.targetRotations[bone].y, lerp); node.rotation.z = THREE.MathUtils.lerp(node.rotation.z, this.targetRotations[bone].z, lerp); }
+                        if (node) {
+                            let tx = this.targetRotations[bone].x + this.motionOffsets[bone].x;
+                            let ty = this.targetRotations[bone].y + this.motionOffsets[bone].y;
+                            let tz = this.targetRotations[bone].z + this.motionOffsets[bone].z;
+                            
+                            // Idle Noise Injection
+                            if (bone === 'spine') tx += breath;
+                            if (bone === 'hips') ty += swayY;
+                            if (bone === 'head') { tx += swayZ; ty += swayY * 0.5; }
+
+                            node.rotation.x = THREE.MathUtils.lerp(node.rotation.x, tx, lerp);
+                            node.rotation.y = THREE.MathUtils.lerp(node.rotation.y, ty, lerp);
+                            node.rotation.z = THREE.MathUtils.lerp(node.rotation.z, tz, lerp);
+                        }
                     });
+
+                    // 4. 입 모양 & 감정 관리
                     if (this.isTalking && this.analyser) {
-                        this.analyser.getByteFrequencyData(this.dataArray); let sum = 0; for(let i=0; i<32; i++) sum += this.dataArray[i];
-                        this.currentVrm.expressionManager.setValue('ih', (sum / (32 * 255)) * 0.4);
-                    } else { this.currentVrm.expressionManager.setValue('ih', THREE.MathUtils.lerp(this.currentVrm.expressionManager.getValue('ih'), 0, 0.1)); }
-                    if (Math.round(elapsed * 100) % 400 === 0) { this.currentVrm.expressionManager.setValue('blink', 1.0); setTimeout(() => this.currentVrm.expressionManager.setValue('blink', 0.0), 120); }
+                        this.analyser.getByteFrequencyData(this.dataArray);
+                        let sum = 0; for(let i=0; i<32; i++) sum += this.dataArray[i];
+                        this.currentVrm.expressionManager.setValue('ih', (sum / (32 * 255)) * 0.5);
+                    } else {
+                        this.currentVrm.expressionManager.setValue('ih', THREE.MathUtils.lerp(this.currentVrm.expressionManager.getValue('ih'), 0, 0.1));
+                    }
+
+                    // 눈 깜빡임 (자연스러운 간격)
+                    if (Math.round(elapsed * 100) % 500 === 0) {
+                        this.currentVrm.expressionManager.setValue('blink', 1.0);
+                        setTimeout(() => this.currentVrm.expressionManager.setValue('blink', 0.0), 120);
+                    }
+                    
                     this.currentVrm.update(delta);
                 }
                 this.renderer.render(this.scene, this.camera);
@@ -420,7 +572,18 @@
                         memoryHint.style.display = 'block'; setTimeout(()=>memoryHint.style.display='none', 5000);
                     }
                 } catch(e) {}
-                const res = await fetch(OLLAMA_URL + '/api/generate', { method: 'POST', body: JSON.stringify({model: 'luna', prompt: context + "\n사용자: " + text, stream: true})});
+                const body = {
+                    model: stagedImage ? 'llava' : 'luna',
+                    prompt: context + "\n사용자: " + text,
+                    stream: true
+                };
+                if (stagedImage) {
+                    body.images = [stagedImage];
+                    stagedImage = null;
+                    imagePreviewContainer.style.display = 'none';
+                    imageInput.value = '';
+                }
+                const res = await fetch(OLLAMA_URL + '/api/generate', { method: 'POST', body: JSON.stringify(body)});
                 const reader = res.body.getReader(); let full = ""; const { responseTextDiv } = addMessage('', 'luna', true);
                 while (true) {
                     const {done, value} = await reader.read(); if (done) break;
@@ -430,13 +593,97 @@
                         const toolRegex = /\[\[TOOL_CALL:\s*(\w+)\((.*?)\)\]\]/g; let m;
                         while ((m = toolRegex.exec(full)) !== null) {
                             const n = m[1], a = m[2].replace(/"/g, '').trim();
-                            if (n === 'set_pose') window.lunaVRM.setPose(a); if (n === 'set_expression') window.lunaVRM.setExpression(a);
+                            if (n === 'set_pose') window.lunaVRM.setPose(a); 
+                            else if (n === 'set_expression') window.lunaVRM.setExpression(a);
+                            else if (n === 'play_motion') window.lunaVRM.playMotion(a);
                         }
                         responseTextDiv.textContent = full.replace(/\[\[.*?\]\]/g, '').replace(/(표정|포즈):\s*/g, '').trim(); chatWindow.scrollTop = chatWindow.scrollHeight;
                     }
                 }
                 const audioRes = await fetch(`${LUNA_BACKEND}/api/actions/actions/speak/`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({text: full.replace(/\[\[.*?\]\]/g,''), model: document.getElementById('tts-select').value})});
                 const audioData = await audioRes.json(); if (audioData.audio_url) { const audio = new Audio(`${LUNA_BACKEND}${audioData.audio_url}`); audio.crossOrigin = "anonymous"; window.lunaVRM.initLipSync(audio); audio.play(); }
+
+                // === ACTION 실행 엔진 (2단계 리서치→실행 루프) ===
+                const actionRegex = /\[\[ACTION:\s*(\w+)\s+({.*?})\]\]/gs;
+                let actionMatch;
+                const actions = [];
+                while ((actionMatch = actionRegex.exec(full)) !== null) {
+                    try { actions.push({ tool: actionMatch[1], args: JSON.parse(actionMatch[2]) }); } catch(e) {}
+                }
+
+                // 액션 실행 함수 (동기식 대기)
+                async function runAction(act) {
+                    let argsJson = '{}';
+                    if (act.tool === 'write_file') argsJson = JSON.stringify({ file_path: act.args.path, file_content: act.args.content, workspace: 'd:/LunaProject' });
+                    else if (act.tool === 'run_command') argsJson = JSON.stringify({ raw_args: act.args.command, workspace: act.args.workspace || 'd:/LunaProject' });
+                    else if (act.tool === 'read_file') argsJson = JSON.stringify({ raw_args: act.args.path, workspace: 'd:/LunaProject' });
+                    else if (act.tool === 'search_web') argsJson = JSON.stringify({ raw_args: act.args.query });
+                    else if (act.tool === 'list_files') argsJson = JSON.stringify({ raw_args: act.args.path || 'd:/LunaProject' });
+                    else if (act.tool === 'replace_code') argsJson = JSON.stringify({ file_path: act.args.path, file_content: JSON.stringify({ search: act.args.search, replace: act.args.replace }), workspace: 'd:/LunaProject' });
+                    else if (act.tool === 'add_goal' || act.tool === 'add_interest') argsJson = JSON.stringify({ raw_args: JSON.stringify(act.args) });
+
+                    const actionDiv = document.createElement('div'); actionDiv.className = 'action-msg';
+                    actionDiv.innerHTML = `<div class="action-header"><span class="action-spinner"></span>⚡ 실행 중: ${act.tool}</div><div class="action-result">대기 중...</div>`;
+                    chatWindow.appendChild(actionDiv); chatWindow.scrollTop = chatWindow.scrollHeight;
+                    try {
+                        const execRes = await fetch(`${LUNA_BACKEND}/api/actions/actions/execute_now/`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ tool_name: act.tool, arguments_json: argsJson }) });
+                        const execData = await execRes.json(); const actionId = execData.id;
+                        for (let i = 0; i < 30; i++) {
+                            await new Promise(r => setTimeout(r, 2000));
+                            const pollRes = await fetch(`${LUNA_BACKEND}/api/actions/actions/${actionId}/result/`);
+                            const pollData = await pollRes.json();
+                            if (pollData.status === 'completed' || pollData.status === 'failed') {
+                                const isOk = pollData.status === 'completed';
+                                actionDiv.className = `action-msg ${isOk ? 'success' : 'failed'}`;
+                                actionDiv.querySelector('.action-header').innerHTML = `${isOk ? '✅' : '❌'} ${isOk ? '완료' : '실패'}: ${act.tool}`;
+                                actionDiv.querySelector('.action-result').textContent = (pollData.result || '').substring(0, 500);
+                                return { tool: act.tool, ok: isOk, result: pollData.result || '' };
+                            }
+                        }
+                        actionDiv.className = 'action-msg failed'; actionDiv.querySelector('.action-header').innerHTML = `❌ 시간 초과: ${act.tool}`;
+                        return { tool: act.tool, ok: false, result: '시간 초과' };
+                    } catch(e) {
+                        actionDiv.className = 'action-msg failed'; actionDiv.querySelector('.action-header').innerHTML = `❌ 연결 실패: ${act.tool}`;
+                        return { tool: act.tool, ok: false, result: e.message };
+                    }
+                }
+
+                // 리서치 vs 실행 분리
+                const researchTools = ['search_web', 'read_file', 'list_files'];
+                const researchActs = actions.filter(a => researchTools.includes(a.tool));
+                const executeActs = actions.filter(a => !researchTools.includes(a.tool));
+
+                // 1단계: 리서치 먼저
+                let researchResults = [];
+                for (const rAct of researchActs) {
+                    const r = await runAction(rAct);
+                    if (r.ok) researchResults.push(`[${r.tool} 결과]:\n${r.result.substring(0, 1500)}`);
+                }
+
+                // 2단계: 리서치만 있고 실행 액션이 없으면 → 결과 기반으로 루나에게 후속 작업 요청
+                if (researchResults.length > 0 && executeActs.length === 0) {
+                    const followPrompt = `아래 자료를 바탕으로 원래 요청을 실제로 수행해줘. 필요하면 write_file이나 run_command ACTION을 사용해서 직접 만들어줘.\n\n${researchResults.join('\n\n')}\n\n원래 요청: ${text}`;
+                    const followMsg = document.createElement('div'); followMsg.className = 'action-msg';
+                    followMsg.innerHTML = `<div class="action-header"><span class="action-spinner"></span>🧠 리서치 결과 분석 중...</div><div class="action-result"></div>`;
+                    chatWindow.appendChild(followMsg); chatWindow.scrollTop = chatWindow.scrollHeight;
+
+                    const fRes = await fetch(OLLAMA_URL + '/api/generate', { method: 'POST', body: JSON.stringify({ model: 'luna', prompt: followPrompt, stream: true }) });
+                    const fReader = fRes.body.getReader(); let fFull = '';
+                    while (true) { const {done, value} = await fReader.read(); if (done) break; for (const l of new TextDecoder().decode(value).split('\n')) { if (!l.trim()) continue; try { fFull += JSON.parse(l).response; } catch(e) {} } }
+                    
+                    const cleanF = fFull.replace(/\[\[.*?\]\]/g, '').trim();
+                    followMsg.className = 'action-msg success'; followMsg.querySelector('.action-header').innerHTML = '🧠 분석 완료';
+                    followMsg.querySelector('.action-result').textContent = cleanF.substring(0, 300);
+                    if (cleanF) addMessage(cleanF, 'luna');
+
+                    // 후속 ACTION 파싱 및 실행
+                    const fRegex = /\[\[ACTION:\s*(\w+)\s+({.*?})\]\]/gs; let fMatch;
+                    while ((fMatch = fRegex.exec(fFull)) !== null) { try { executeActs.push({ tool: fMatch[1], args: JSON.parse(fMatch[2]) }); } catch(e) {} }
+                }
+
+                // 3단계: 실행 액션 처리
+                for (const eAct of executeActs) await runAction(eAct);
+
             } catch (e) { addMessage(`오류: 연결 실패. 로컬 서버가 켜져 있는지 확인해줘!`, 'luna'); }
             finally { typingIndicator.style.display = 'none'; }
         }
