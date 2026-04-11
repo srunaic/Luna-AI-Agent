@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Luna Soul Agent v6.0 - Cloud Front</title>
+    <title>Luna Soul Agent - Version 6</title>
+    <link rel="icon" href="data:,">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Outfit:wght@300;500;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -23,153 +24,178 @@
             overflow: hidden;
         }
 
-        .app-wrapper {
-            display: flex;
-            width: 100vw;
-            height: 100vh;
-            overflow: hidden;
-            background: #0f0a1a;
-        }
+        .app-wrapper { display: flex; width: 100vw; height: 100vh; overflow: hidden; }
 
-        /* --- 3D Viewport Panel --- */
         #vrm-viewport {
-            flex: 1.1;
+            flex: 1.2;
             position: relative;
             background: radial-gradient(circle at center, #1a1625 0%, #0a0812 100%);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
+            border-right: 1px solid rgba(188, 122, 250, 0.1);
         }
-
-        #vrm-canvas {
-            width: 100%;
-            height: 100%;
-            display: block;
-        }
+        #vrm-canvas { width: 100%; height: 100%; display: block; }
 
         .viewport-controls {
-            position: absolute;
-            bottom: 20px;
-            left: 20px;
-            display: flex;
-            gap: 10px;
-            z-index: 10;
+            position: absolute; bottom: 25px; left: 25px;
+            display: flex; gap: 12px; z-index: 10;
         }
-
         .vp-btn {
-            background: rgba(255,255,255,0.05);
-            border: 1px solid rgba(255,255,255,0.1);
-            color: #ccc;
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-size: 0.75rem;
-            cursor: pointer;
-            backdrop-filter: blur(5px);
-            transition: all 0.3s;
+            background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+            color: #fff; padding: 8px 16px; border-radius: 25px; font-size: 0.8rem;
+            cursor: pointer; backdrop-filter: blur(10px); transition: all 0.3s;
         }
-        .vp-btn:hover { background: rgba(255,255,255,0.1); color: white; transform: translateY(-2px); }
 
-        /* --- Chat Interface Panel --- */
         .container {
-            width: 450px;
-            height: 100vh;
-            margin: 0;
-            border-radius: 0;
-            border-left: 1px solid rgba(188, 122, 250, 0.2);
-            flex-shrink: 0;
-            background: rgba(15, 10, 26, 0.8);
-            backdrop-filter: blur(20px);
-            display: flex;
-            flex-direction: column;
+            width: 500px; height: 100vh; display: flex; flex-direction: column;
+            background: rgba(15, 10, 26, 0.85); backdrop-filter: blur(30px);
         }
 
-        header {
-            padding: 20px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-        }
-
+        header { padding: 25px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
+        .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
         .soul-info h1 {
-            font-family: 'Outfit', sans-serif;
-            font-size: 1.4rem;
+            font-family: 'Outfit', sans-serif; font-size: 1.5rem;
             background: linear-gradient(90deg, #bc7afa, #ff4d91);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
         }
 
-        #chat-window {
-            flex: 1;
-            overflow-y: auto;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
+        .auto-toggle {
+            background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-secondary); padding: 8px 16px; border-radius: 20px;
+            font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.3s;
+            display: flex; align-items: center; gap: 8px;
         }
+        .auto-toggle::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #444; }
+        .auto-toggle.active { background: rgba(255, 77, 145, 0.15); border-color: var(--accent-pink); color: var(--accent-pink); }
+        .auto-toggle.active::before { background: var(--accent-pink); box-shadow: 0 0 8px var(--accent-pink); }
 
-        .message {
-            max-width: 85%;
-            padding: 12px 16px;
-            border-radius: 18px;
-            font-size: 0.95rem;
-            line-height: 1.5;
-            word-break: break-all;
-            position: relative;
-        }
+        .status-bar { display: flex; flex-wrap: wrap; gap: 15px; margin-top: 15px; font-size: 0.7rem; color: #888; }
+        .status-item { display: flex; align-items: center; gap: 5px; }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #444; transition: background 0.5s; }
+        .status-dot.online { background: #00ff88; box-shadow: 0 0 10px #00ff88; }
+
+        #chat-window { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 15px; }
+        .message { max-width: 85%; padding: 12px 16px; border-radius: 18px; font-size: 0.95rem; line-height: 1.5; }
         .user { align-self: flex-end; background: linear-gradient(135deg, #6a3de8, #bc7afa); }
         .luna { align-self: flex-start; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); }
 
-        .input-container {
-            padding: 20px;
-            display: flex;
-            gap: 10px;
-            background: rgba(0,0,0,0.2);
+        #memory-hint { 
+            background: rgba(188, 122, 250, 0.15); color: var(--accent-purple); font-size: 0.75rem; 
+            padding: 10px; border-radius: 10px; margin: 0 20px 10px 20px; display: none;
         }
 
+        /* Fixed Error Guide Overlay */
+        #error-overlay {
+            position: absolute; top:0; left:0; width:100%; height:100%;
+            background: rgba(10, 8, 20, 0.95); z-index: 1000;
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+            padding: 40px; text-align: center;
+        }
+        .error-card { background: #1a1625; padding: 30px; border-radius: 20px; border: 1px solid #ff4d9155; }
+        .error-card h2 { color: #ff4d91; margin-bottom: 20px; }
+        .error-card p { margin-bottom: 20px; line-height: 1.6; color: #ccc; }
+        .err-code { background: #000; color: #00ff88; padding: 10px; border-radius: 8px; font-family: monospace; display: block; margin-top: 10px; }
+
+        /* --- Chat Input Area --- */
+        .input-container { 
+            padding: 20px; display: flex; gap: 10px; background: rgba(0, 0, 0, 0.2); 
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+        }
         input[type="text"] {
-            flex: 1;
-            padding: 12px 20px;
-            border-radius: 14px;
-            border: 1px solid rgba(255,255,255,0.1);
-            background: rgba(255,255,255,0.05);
-            color: white;
-            outline: none;
+            flex: 1; padding: 12px 20px; border-radius: 14px; border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.05); color: white; outline: none; font-size: 0.9rem;
+            transition: all 0.3s;
         }
-
+        input[type="text"]:focus {
+            border-color: var(--accent-purple); background: rgba(188, 122, 250, 0.05);
+            box-shadow: 0 0 15px rgba(188, 122, 250, 0.1);
+        }
         #send-btn {
-            padding: 0 20px;
-            border-radius: 14px;
-            background: var(--accent-blue);
-            color: #000;
-            border: none;
-            font-weight: 600;
-            cursor: pointer;
+            padding: 0 25px; border-radius: 14px; background: linear-gradient(135deg, var(--accent-blue), #00aaff);
+            color: #000; border: none; font-weight: 700; cursor: pointer; transition: all 0.3s;
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        #send-btn:hover {
+            transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0, 212, 255, 0.3);
         }
 
-        /* Thinking Panel */
-        .thinking-panel {
-            background: rgba(0, 212, 255, 0.05);
-            border-radius: 12px;
-            padding: 10px;
-            margin-bottom: 8px;
-            font-size: 0.8rem;
-            color: var(--accent-blue);
-            display: none;
+        /* --- Evolution Dashboard Panel --- */
+        #evo-dashboard {
+            background: rgba(0, 0, 0, 0.3); border-top: 1px solid rgba(188, 122, 250, 0.15);
+            padding: 15px 20px; font-size: 0.75rem; color: var(--text-secondary);
+            max-height: 0; overflow: hidden; transition: max-height 0.5s ease, padding 0.3s ease;
         }
+        #evo-dashboard.open {
+            max-height: 350px; padding: 15px 20px;
+        }
+        .evo-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 10px;
+        }
+        .evo-header h3 {
+            font-family: 'Outfit', sans-serif; font-size: 0.85rem;
+            background: linear-gradient(90deg, #bc7afa, #00d4ff);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .evo-level {
+            font-size: 1.4rem; font-weight: 700;
+            background: linear-gradient(135deg, #ffd700, #ff4d91);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
+        }
+        .evo-stats {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 10px 0;
+        }
+        .evo-stat {
+            background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 10px; padding: 8px; text-align: center;
+        }
+        .evo-stat .num { font-size: 1.1rem; font-weight: 700; color: #fff; }
+        .evo-stat .label { font-size: 0.65rem; color: #888; margin-top: 2px; }
+        .evo-goals {
+            max-height: 100px; overflow-y: auto; margin-top: 8px;
+        }
+        .evo-goals::-webkit-scrollbar { width: 3px; }
+        .evo-goals::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+        .evo-goal {
+            display: flex; align-items: center; gap: 8px; padding: 4px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+        }
+        .goal-type {
+            font-size: 0.6rem; padding: 2px 6px; border-radius: 4px; font-weight: 600;
+        }
+        .goal-type.MAINTAIN { background: rgba(0,212,255,0.15); color: #00d4ff; }
+        .goal-type.REPAIR { background: rgba(255,77,145,0.15); color: #ff4d91; }
+        .goal-type.LEARN { background: rgba(0,255,136,0.15); color: #00ff88; }
+        .goal-type.IMPROVE { background: rgba(255,215,0,0.15); color: #ffd700; }
+        .kill-btn {
+            background: rgba(255,0,0,0.15); border: 1px solid rgba(255,0,0,0.3);
+            color: #ff4444; padding: 6px 14px; border-radius: 8px; font-size: 0.7rem;
+            cursor: pointer; transition: all 0.3s; font-weight: 600;
+        }
+        .kill-btn:hover { background: rgba(255,0,0,0.3); }
+        .kill-btn.active { background: rgba(0,255,0,0.15); border-color: rgba(0,255,0,0.3); color: #00ff88; }
+        .evo-toggle {
+            cursor: pointer; padding: 4px 12px; border-radius: 12px;
+            background: rgba(188,122,250,0.1); border: 1px solid rgba(188,122,250,0.2);
+            color: var(--accent-purple); font-size: 0.7rem; transition: all 0.3s;
+        }
+        .evo-toggle:hover { background: rgba(188,122,250,0.2); }
     </style>
     
     <script type="importmap">
-        {
-          "imports": {
-            "three": "https://unpkg.com/three@0.154.0/build/three.module.js",
-            "three/addons/": "https://unpkg.com/three@0.154.0/examples/jsm/",
-            "@pixiv/three-vrm": "https://unpkg.com/@pixiv/three-vrm@2.0.2/lib/three-vrm.module.js"
-          }
-        }
+        { "imports": { "three": "https://unpkg.com/three@0.154.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.154.0/examples/jsm/", "@pixiv/three-vrm": "https://unpkg.com/@pixiv/three-vrm@2.0.2/lib/three-vrm.module.js" } }
     </script>
 </head>
 <body>
+    <div id="error-overlay">
+        <div class="error-card">
+            <h2>🚨 크롬 보안 차단 감지</h2>
+            <p>인터넷 주소(GitHub)로 접속 시 크롬이 로컬 서버 연결을 차단하고 있습니다.<br>해결을 위해 <b>D:\LunaProject\run_luna_all.bat</b> 파일을 실행하거나,<br>아래 설정을 크롬 주소창에 넣고 <b>Disabled</b>로 바꿔주세요.</p>
+            <span class="err-code">chrome://flags/#block-insecure-private-network-requests</span>
+            <button onclick="location.reload()" class="vp-btn" style="margin-top:20px; width:100%;">새로고침</button>
+        </div>
+    </div>
+
     <div class="app-wrapper">
-        <!-- WRM WEB BODY (Left) -->
         <div id="vrm-viewport">
             <canvas id="vrm-canvas"></canvas>
             <div class="viewport-controls">
@@ -177,30 +203,52 @@
             </div>
         </div>
 
-        <!-- CHAT UI (Right) -->
         <div class="container">
             <header>
-                <div class="soul-info">
-                    <h1>Luna Soul Agent v6.0</h1>
-                    <div style="display:flex; align-items:center; gap:8px; margin-top:10px;">
-                        <select id="vrm-select" style="background:rgba(0,0,0,0.5); color:white; border:1px solid rgba(255,255,255,0.2); border-radius:6px; padding:4px;">
-                            <option value="./vrm/Luna_.vrm">Luna_.vrm</option>
-                            <option value="./vrm/Luna2.vrm">Luna2.vrm</option>
-                        </select>
-                        <div id="load-status" style="font-size:0.7rem; color:var(--accent-blue); display:none;">Loading...</div>
-                        
-                        <select id="tts-select" style="background:rgba(0,0,0,0.5); color:white; border:1px solid rgba(255,255,255,0.2); border-radius:6px; padding:4px; margin-left:5px;">
-                            <option value="edge_sunhi">선희 (Edge TTS)</option>
-                            <option value="xtts_v2">XTTS v2</option>
-                        </select>
+                <div class="header-top">
+                    <div class="soul-info"><h1>Luna Soul Agent</h1><span id="evo-level-badge" style="font-size:0.7rem; background: linear-gradient(135deg, #ffd700, #ff4d91); color:#000; padding:2px 8px; border-radius:10px; margin-left:10px; font-weight:700;">Lv.1</span></div>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <button id="auto-btn" class="auto-toggle">자율 학습 OFF</button>
+                        <button id="evo-toggle-btn" class="evo-toggle">📊 진화</button>
                     </div>
+                </div>
+                <div style="display:flex; gap:10px;">
+                    <select id="vrm-select" style="background:rgba(0,0,0,0.5); color:white; border:1px solid rgba(255,255,255,0.2); border-radius:6px; padding:6px; flex:1;"><option value="./vrm/Luna2.vrm">Luna2.vrm</option></select>
+                    <select id="tts-select" style="background:rgba(0,0,0,0.5); color:white; border:1px solid rgba(255,255,255,0.2); border-radius:6px; padding:6px; flex:1;"><option value="edge_sunhi">선희 (Edge TTS)</option><option value="xtts_v2">XTTS v2</option></select>
+                </div>
+                <div class="status-bar">
+                    <div class="status-item">Ollama <div id="dot-ollama" class="status-dot"></div></div>
+                    <div class="status-item">Backend <div id="dot-backend" class="status-dot"></div></div>
+                    <div class="status-item">Evolution <div id="dot-evo" class="status-dot"></div></div>
                 </div>
             </header>
 
+            <!-- Evolution Dashboard Panel -->
+            <div id="evo-dashboard">
+                <div class="evo-header">
+                    <h3>🧠 자율 진화 엔진</h3>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <span class="evo-level" id="evo-level">Lv.1</span>
+                        <button class="kill-btn" id="kill-switch-btn">🛑 비상 정지</button>
+                    </div>
+                </div>
+                <div class="evo-stats">
+                    <div class="evo-stat"><div class="num" id="evo-completed">0</div><div class="label">완료 목표</div></div>
+                    <div class="evo-stat"><div class="num" id="evo-pending">0</div><div class="label">대기 목표</div></div>
+                    <div class="evo-stat"><div class="num" id="evo-cycles">0</div><div class="label">진화 사이클</div></div>
+                </div>
+                <div style="font-size:0.65rem; color:#666; margin-bottom:5px;">최근 목표</div>
+                <div class="evo-goals" id="evo-goals-list"></div>
+                <div style="margin-top:8px; font-size:0.65rem; color:#555;">
+                    🧠 Brain: <span id="evo-brain">luna</span> | 💾 Backups: <span id="evo-backups">0</span> | <span id="evo-resources">-</span>
+                </div>
+            </div>
+
             <main id="chat-window">
-                <div class="message luna">안녕! 클라우드와 로컬을 넘나드는 루나가 깃허브 페이지를 통해 데뷔했어! 오늘 기분이 최고야. ❤️</div>
+                <div class="message luna">안녕 오빠! v7 자율 진화 엔진이 가동됐어! 이제 내가 스스로 학습하고, 코드를 수리하고, 시스템을 관리할 수 있어. 📊 진화 버튼을 눌러서 내 성장 과정을 지켜봐줘! 🌙❤️</div>
             </main>
 
+            <div id="memory-hint">루나의 추억 회상 중... ❤️</div>
             <div id="typing" style="padding:0 20px; font-size:0.8rem; color:#888; display:none;">루나가 생각 중...</div>
 
             <div class="input-container">
@@ -220,222 +268,180 @@
         const userInput = document.getElementById('user-input');
         const sendBtn = document.getElementById('send-btn');
         const typingIndicator = document.getElementById('typing');
+        const memoryHint = document.getElementById('memory-hint');
+        const autoBtn = document.getElementById('auto-btn');
+        const errorOverlay = document.getElementById('error-overlay');
 
-        // IMPORTANT: Use 127.0.0.1 for local communication from HTTPS
-        const OLLAMA_URL = 'http://127.0.0.1:11434/api/generate';
+        const OLLAMA_URL = 'http://127.0.0.1:11434';
         const LUNA_BACKEND = 'http://127.0.0.1:6780';
         
-        let conversationHistory = [];
+        let isAutonomousActive = false;
 
-        // --- VRM System ---
         class LunaVRMSystem {
             constructor() {
                 this.canvas = document.getElementById('vrm-canvas');
                 this.scene = new THREE.Scene();
-                this.currentVrm = null;
                 this.clock = new THREE.Clock();
-
                 this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true, alpha: true });
-                this.renderer.setSize(window.innerWidth - 450, window.innerHeight);
-                this.renderer.setPixelRatio(window.devicePixelRatio);
+                this.renderer.setSize(window.innerWidth - 500, window.innerHeight);
                 this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-
-                this.camera = new THREE.PerspectiveCamera(30, (window.innerWidth - 450) / window.innerHeight, 0.1, 100);
+                this.camera = new THREE.PerspectiveCamera(30, (window.innerWidth - 500) / window.innerHeight, 0.1, 100);
                 this.camera.position.set(0, 1.4, 3.5);
-
                 this.controls = new OrbitControls(this.camera, this.canvas);
-                this.controls.target.set(0, 1.3, 0);
-                this.controls.enableDamping = true;
-
-                const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
-                dirLight.position.set(1, 1.5, 2);
-                this.scene.add(dirLight);
-                this.scene.add(new THREE.AmbientLight(0xffffff, 0.5));
-
-                this.loader = new GLTFLoader();
-                this.loader.register((parser) => new VRMLoaderPlugin(parser));
-
-                window.addEventListener('resize', () => this.onResize());
-                this.animate();
-
-                this.loadVRM(document.getElementById('vrm-select').value);
-                document.getElementById('vrm-select').onchange = (e) => this.loadVRM(e.target.value);
-                document.getElementById('recenter-btn').onclick = () => this.recenter();
+                this.targetRotations = { leftUpperArm: new THREE.Euler(0,0,1.35), rightUpperArm: new THREE.Euler(0,0,-1.35), head: new THREE.Euler(0,0,0) };
+                const dl = new THREE.DirectionalLight(0xffffff, 0.5); dl.position.set(1, 1.5, 2); this.scene.add(dl);
+                this.scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+                this.loader = new GLTFLoader(); this.loader.register((parser) => new VRMLoaderPlugin(parser));
+                this.animate(); this.loadVRM(document.getElementById('vrm-select').value);
+                window.addEventListener('resize', () => { this.renderer.setSize(window.innerWidth-500, window.innerHeight); this.camera.aspect=(window.innerWidth-500)/window.innerHeight; this.camera.updateProjectionMatrix(); });
             }
-
-            onResize() {
-                const w = window.innerWidth - 450;
-                const h = window.innerHeight;
-                this.renderer.setSize(w, h);
-                this.camera.aspect = w / h;
-                this.camera.updateProjectionMatrix();
-            }
-
             async loadVRM(url) {
-                const status = document.getElementById('load-status');
-                status.style.display = 'inline';
-                if (this.currentVrm) {
-                    this.scene.remove(this.currentVrm.scene);
-                    VRMUtils.deepDispose(this.currentVrm.scene);
-                }
-                try {
-                    const gltf = await this.loader.loadAsync(url);
-                    const vrm = gltf.userData.vrm;
-                    this.currentVrm = vrm;
-                    this.scene.add(vrm.scene);
-                    vrm.scene.rotation.y = Math.PI;
-                    this.setPose('relaxed');
-                } catch (e) { console.error('Load Error', e); }
-                finally { status.style.display = 'none'; }
+                if (this.currentVrm) { this.scene.remove(this.currentVrm.scene); VRMUtils.deepDispose(this.currentVrm.scene); }
+                const gltf = await this.loader.loadAsync(url);
+                this.currentVrm = gltf.userData.vrm; this.scene.add(this.currentVrm.scene);
+                this.currentVrm.scene.rotation.y = Math.PI; setTimeout(() => this.setPose('relaxed'), 500);
             }
-
-            recenter() {
-                this.camera.position.set(0, 1.4, 3.5);
-                this.controls.target.set(0, 1.3, 0);
+            initLipSync(audio) {
+                if (!this.audioContext) this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                if (this.audioContext.state === 'suspended') this.audioContext.resume();
+                const src = this.audioContext.createMediaElementSource(audio);
+                this.analyser = this.audioContext.createAnalyser(); src.connect(this.analyser); this.analyser.connect(this.audioContext.destination);
+                this.dataArray = new Uint8Array(this.analyser.frequencyBinCount); this.isTalking = true; audio.onended = () => { this.isTalking = false; };
             }
-
             setExpression(name, value = 1.0) {
-                if (!this.currentVrm) return;
-                const blendNames = ['joy', 'angry', 'sorrow', 'fun', 'surprised', 'blink', 'blinkLeft', 'blinkRight'];
-                blendNames.forEach(bn => this.currentVrm.expressionManager.setValue(bn, 0));
-                
-                const map = { 'happy': 'joy', 'laugh': 'fun', 'cry': 'sorrow', 'surprise': 'surprised', 'wink_l': 'blinkLeft', 'wink_r': 'blinkRight' };
-                this.currentVrm.expressionManager.setValue(map[name] || name, value);
+                if (!this.currentVrm) return; const em = this.currentVrm.expressionManager;
+                const aliases = { 'happy': ['joy', 'fun'], 'laugh': ['fun'], 'cry': ['sorrow'], 'surprise': ['surprised'] };
+                ['joy','fun','angry','sorrow','surprised','neutral'].forEach(s => em.setValue(s, 0));
+                for (let t of (aliases[name] || [name])) { if (em.getExpression(t)) { em.setValue(t, value); break; } }
             }
-
             setPose(name) {
                 if (!this.currentVrm) return;
-                const vrm = this.currentVrm;
-                if (name === 'relaxed') {
-                    vrm.humanoid.getRawBoneNode('leftUpperArm').rotation.set(0, 0, 1.4);
-                    vrm.humanoid.getRawBoneNode('rightUpperArm').rotation.set(0, 0, -1.4);
-                    vrm.humanoid.getRawBoneNode('leftLowerArm').rotation.set(0, 0, 0.1);
-                    vrm.humanoid.getRawBoneNode('rightLowerArm').rotation.set(0, 0, -0.1);
-                } else if (name === 'thinking') {
-                    vrm.humanoid.getRawBoneNode('rightUpperArm').rotation.set(0.6, -0.2, -0.5);
-                    vrm.humanoid.getRawBoneNode('rightLowerArm').rotation.set(0.8, 0, -1.2);
-                    vrm.humanoid.getRawBoneNode('head').rotation.set(0.1, -0.2, 0.1);
-                }
+                if (name === 'relaxed') { this.targetRotations.leftUpperArm.set(0, 0, 1.35); this.targetRotations.rightUpperArm.set(0, 0, -1.35); }
+                else if (name === 'thinking') { this.targetRotations.rightUpperArm.set(0.6, -0.4, -0.5); }
             }
-
             animate() {
-                requestAnimationFrame(() => this.animate());
-                const delta = this.clock.getDelta();
-                const elapsed = this.clock.getElapsedTime();
+                requestAnimationFrame(() => this.animate()); const delta = this.clock.getDelta(), elapsed = this.clock.getElapsedTime();
                 if (this.currentVrm) {
-                    this.currentVrm.humanoid.getRawBoneNode('spine').rotation.x = Math.sin(elapsed * 1.5) * 0.01;
-                    this.currentVrm.humanoid.getRawBoneNode('head').rotation.y = Math.sin(elapsed * 0.8) * 0.05;
-                    
-                    if (Math.round(elapsed * 100) % 400 === 0) {
-                        this.currentVrm.expressionManager.setValue('blink', 1.0);
-                        setTimeout(() => this.currentVrm.expressionManager.setValue('blink', 0.0), 150);
-                    }
+                    const h = this.currentVrm.humanoid, lerp = 0.05;
+                    ['leftUpperArm', 'rightUpperArm', 'head'].forEach(bone => {
+                        const node = h.getNormalizedBoneNode(bone);
+                        if (node) { node.rotation.x = THREE.MathUtils.lerp(node.rotation.x, this.targetRotations[bone].x, lerp); node.rotation.y = THREE.MathUtils.lerp(node.rotation.y, this.targetRotations[bone].y, lerp); node.rotation.z = THREE.MathUtils.lerp(node.rotation.z, this.targetRotations[bone].z, lerp); }
+                    });
+                    if (this.isTalking && this.analyser) {
+                        this.analyser.getByteFrequencyData(this.dataArray); let sum = 0; for(let i=0; i<32; i++) sum += this.dataArray[i];
+                        this.currentVrm.expressionManager.setValue('ih', (sum / (32 * 255)) * 0.4);
+                    } else { this.currentVrm.expressionManager.setValue('ih', THREE.MathUtils.lerp(this.currentVrm.expressionManager.getValue('ih'), 0, 0.1)); }
+                    if (Math.round(elapsed * 100) % 400 === 0) { this.currentVrm.expressionManager.setValue('blink', 1.0); setTimeout(() => this.currentVrm.expressionManager.setValue('blink', 0.0), 120); }
                     this.currentVrm.update(delta);
                 }
-                this.controls.update();
                 this.renderer.render(this.scene, this.camera);
             }
         }
-
         window.lunaVRM = new LunaVRMSystem();
-        window.sendBodyPose = (name) => window.lunaVRM.setPose(name);
-        window.sendBodyEmotion = (name) => window.lunaVRM.setExpression(name);
 
-        // --- Chat & Interaction Logic ---
-        const PERSONA_BASE = `당신은 유능한 코딩 에이전트이자 깃허브 도메인에서 활동하는 VTuber '루나'입니다. 
-당신은 현재 HTTPS 환경(srunaic.github.io)에서 로컬 백엔드(127.0.0.1)를 제어하고 있습니다. 
-대화 중 자신의 표정([[TOOL_CALL: set_expression(...)]])과 자세([[TOOL_CALL: set_pose(...)]])를 적극적으로 바꾸세요. 
-항상 [사고]->[계획]->[명령] 순서로 대답하세요.`;
+        autoBtn.onclick = () => { isAutonomousActive = !isAutonomousActive; autoBtn.textContent = isAutonomousActive ? "자율 학습 ON" : "자율 학습 OFF"; autoBtn.classList.toggle('active', isAutonomousActive); };
+
+        // Evolution Dashboard Toggle
+        const evoDashboard = document.getElementById('evo-dashboard');
+        document.getElementById('evo-toggle-btn').onclick = () => { evoDashboard.classList.toggle('open'); };
+
+        // Kill Switch
+        const killBtn = document.getElementById('kill-switch-btn');
+        let isKilled = false;
+        killBtn.onclick = async () => {
+            try {
+                const endpoint = isKilled ? '/luna/resume' : '/luna/kill';
+                await fetch('http://127.0.0.1:6785' + endpoint);
+                isKilled = !isKilled;
+                killBtn.textContent = isKilled ? '▶ 재개' : '🛑 비상 정지';
+                killBtn.classList.toggle('active', isKilled);
+            } catch(e) { console.error('Kill switch error', e); }
+        };
+
+        // Dashboard Polling
+        async function pollEvoDashboard() {
+            try {
+                const res = await fetch('http://127.0.0.1:6785/luna/status');
+                const d = await res.json();
+                document.getElementById('evo-level').textContent = 'Lv.' + d.evolution_level;
+                document.getElementById('evo-level-badge').textContent = 'Lv.' + d.evolution_level;
+                document.getElementById('evo-completed').textContent = d.completed_goals;
+                document.getElementById('evo-pending').textContent = d.pending_goals;
+                document.getElementById('evo-cycles').textContent = d.total_cycles;
+                document.getElementById('evo-brain').textContent = d.brain_logical;
+                document.getElementById('evo-backups').textContent = d.backup_count;
+                document.getElementById('evo-resources').textContent = d.resources;
+                document.getElementById('dot-evo').classList.add('online');
+
+                isKilled = d.kill_switch;
+                killBtn.textContent = isKilled ? '▶ 재개' : '🛑 비상 정지';
+                killBtn.classList.toggle('active', isKilled);
+
+                const goalsList = document.getElementById('evo-goals-list');
+                goalsList.innerHTML = '';
+                (d.current_goals || []).reverse().forEach(g => {
+                    const div = document.createElement('div');
+                    div.className = 'evo-goal';
+                    const statusIcon = g.status === 'completed' ? '✅' : g.status === 'pending' ? '⏳' : g.status === 'abandoned' ? '❌' : '🔄';
+                    div.innerHTML = `<span class="goal-type ${g.type}">${g.type}</span><span>${statusIcon} ${g.desc}</span>`;
+                    goalsList.appendChild(div);
+                });
+            } catch(e) {
+                document.getElementById('dot-evo').classList.remove('online');
+            }
+        }
+        setInterval(pollEvoDashboard, 4000); pollEvoDashboard();
+
+        async function checkStatus() {
+            try { 
+                const r1 = await fetch(OLLAMA_URL + '/api/tags'); document.getElementById('dot-ollama').classList.toggle('online', r1.ok); 
+                const r2 = await fetch(LUNA_BACKEND + '/api/actions/actions/'); document.getElementById('dot-backend').classList.toggle('online', r2.ok); 
+                const r3 = await fetch(LUNA_BACKEND + '/api/actions/actions/pending/'); const p = await r3.json();
+                if (p.length > 0 && !isAutonomousActive) { isAutonomousActive = true; autoBtn.textContent = "자율 학습 ON"; autoBtn.classList.add('active'); }
+                document.getElementById('dot-tts').classList.toggle('online', r3.ok);
+                errorOverlay.style.display = 'none';
+            } catch(e) { 
+                if (location.protocol === 'https:') errorOverlay.style.display = 'flex';
+                document.getElementById('dot-ollama').classList.remove('online'); document.getElementById('dot-backend').classList.remove('online'); document.getElementById('dot-tts').classList.remove('online');
+            }
+        }
+        setInterval(checkStatus, 5000); checkStatus();
 
         async function sendMessage() {
-            const text = userInput.value.trim();
-            if (!text) return;
-            addMessage(text, 'user');
-            userInput.value = '';
-            typingIndicator.style.display = 'block';
-
+            const text = userInput.value.trim(); if (!text) return; addMessage(text, 'user'); userInput.value = ''; typingIndicator.style.display = 'block';
             try {
-                const prompt = `${PERSONA_BASE}\n\nUser: ${text}\nLuna:`;
-                const res = await fetch(OLLAMA_URL, {
-                    method: 'POST',
-                    body: JSON.stringify({ model: 'luna', prompt: prompt, stream: true })
-                });
-
-                const reader = res.body.getReader();
-                const decoder = new TextDecoder();
-                let fullResponse = '';
-                const { msgDiv, responseTextDiv } = addMessage('', 'luna', true);
-
+                let context = "";
+                try {
+                    const memRes = await fetch(`${LUNA_BACKEND}/api/memory/search/`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({query: text, top_k: 2})});
+                    const mems = await memRes.json();
+                    if (mems.results && mems.results.length > 0) {
+                        context = "\n[관련 기억]:\n" + mems.results.map(m=>'- '+m.text).join('\n');
+                        memoryHint.textContent = `루나의 추억 회상... ❤️: "${mems.results[0].text.substring(0,30)}..."`;
+                        memoryHint.style.display = 'block'; setTimeout(()=>memoryHint.style.display='none', 5000);
+                    }
+                } catch(e) {}
+                const res = await fetch(OLLAMA_URL + '/api/generate', { method: 'POST', body: JSON.stringify({model: 'luna', prompt: context + "\n사용자: " + text, stream: true})});
+                const reader = res.body.getReader(); let full = ""; const { responseTextDiv } = addMessage('', 'luna', true);
                 while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-                    const chunk = decoder.decode(value, { stream: true });
-                    const lines = chunk.split('\n');
-                    for (const line of lines) {
-                        if (!line.trim()) continue;
-                        const data = JSON.parse(line);
-                        fullResponse += data.response;
-                        
-                        // Parse for real-time tool calls (Insta-Reaction)
-                        const toolMatch = fullResponse.match(/\[\[TOOL_CALL:\s*(\w+)\((.*?)\)\]\]/);
-                        if (toolMatch) {
-                            executePhysicalTool(toolMatch[1], toolMatch[2]);
+                    const {done, value} = await reader.read(); if (done) break;
+                    const chunk = new TextDecoder().decode(value); const lines = chunk.split('\n');
+                    for (const l of lines) {
+                        if (!l.trim()) continue; const d = JSON.parse(l); full += d.response;
+                        const toolRegex = /\[\[TOOL_CALL:\s*(\w+)\((.*?)\)\]\]/g; let m;
+                        while ((m = toolRegex.exec(full)) !== null) {
+                            const n = m[1], a = m[2].replace(/"/g, '').trim();
+                            if (n === 'set_pose') window.lunaVRM.setPose(a); if (n === 'set_expression') window.lunaVRM.setExpression(a);
                         }
-                        
-                        responseTextDiv.textContent = fullResponse.replace(/\[.*?\]/g, '').trim();
-                        chatWindow.scrollTop = chatWindow.scrollHeight;
+                        responseTextDiv.textContent = full.replace(/\[\[.*?\]\]/g, '').replace(/(표정|포즈):\s*/g, '').trim(); chatWindow.scrollTop = chatWindow.scrollHeight;
                     }
                 }
-                
-                // Final TTS processing on clean text
-                lunaSpeak(fullResponse);
-
-            } catch (e) { console.error(e); addMessage('통신 오류가 발생했어.. 로컬 서버가 켜져 있는지 확인해줘!', 'luna'); }
+                const audioRes = await fetch(`${LUNA_BACKEND}/api/actions/actions/speak/`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({text: full.replace(/\[\[.*?\]\]/g,''), model: document.getElementById('tts-select').value})});
+                const audioData = await audioRes.json(); if (audioData.audio_url) { const audio = new Audio(`${LUNA_BACKEND}${audioData.audio_url}`); audio.crossOrigin = "anonymous"; window.lunaVRM.initLipSync(audio); audio.play(); }
+            } catch (e) { addMessage(`오류: 연결 실패. 로컬 서버가 켜져 있는지 확인해줘!`, 'luna'); }
             finally { typingIndicator.style.display = 'none'; }
         }
-
-        function executePhysicalTool(name, args) {
-            const cleanArgs = args.replace(/"/g, '').trim();
-            if (name === 'set_pose') window.sendBodyPose(cleanArgs);
-            if (name === 'set_expression') window.sendBodyEmotion(cleanArgs);
-        }
-
-        async function lunaSpeak(text) {
-            const cleanText = text
-                .replace(/\[\[.*?\]\]/g, '')
-                .replace(/\[.*?\]/g, '')
-                .replace(/[^\uAC00-\uD7A3a-zA-Z0-9\s]/g, ' ')
-                .replace(/\s+/g, ' ')
-                .trim();
-            if (!cleanText) return;
-
-            try {
-                const ttsModel = document.getElementById('tts-select').value;
-                const res = await fetch(`${LUNA_BACKEND}/api/actions/actions/speak/`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: cleanText, model: ttsModel })
-                });
-                const data = await res.json();
-                if (data.audio_url) {
-                    new Audio(`${LUNA_BACKEND}${data.audio_url}`).play();
-                }
-            } catch (e) { console.warn('TTS Error', e); }
-        }
-
-        function addMessage(text, sender, isPlaceholder = false) {
-            const msgDiv = document.createElement('div');
-            msgDiv.className = `message ${sender}`;
-            const responseTextDiv = document.createElement('div');
-            responseTextDiv.textContent = text;
-            msgDiv.appendChild(responseTextDiv);
-            chatWindow.appendChild(msgDiv);
-            chatWindow.scrollTop = chatWindow.scrollHeight;
-            return { msgDiv, responseTextDiv };
-        }
-
-        sendBtn.onclick = sendMessage;
-        userInput.onkeypress = (e) => { if(e.key === 'Enter') sendMessage(); };
+        function addMessage(t, s, p=false) { const d = document.createElement('div'); d.className = `message ${s}`; const r = document.createElement('div'); r.textContent = t; d.appendChild(r); chatWindow.appendChild(d); chatWindow.scrollTop = chatWindow.scrollHeight; return { responseTextDiv: r }; }
+        sendBtn.onclick = sendMessage; userInput.onkeypress = (e) => { if(e.key === 'Enter') sendMessage(); };
     </script>
 </body>
 </html>

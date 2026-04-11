@@ -1,0 +1,45 @@
+# Luna AI Agent - .gitignore
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# Virtual environments
+luna-tts-venv/
+
+# Database & Cache
+*.sqlite3
+chroma_db/
+*.log
+
+# Media & Assets (large)
+luna_ref.wav
+luna-server/media/
+browser_shot.png
+VSeeFace/
+Luna Vrm/
+
+# Temp files
+*.tmp
+luna_chat_temp.html
+pyc_strings.txt
+process_list.txt
+naver_dump.html
+
+# Runtime generated
+luna_evolution_log.jsonl
+luna_goal_queue.json
+luna_changes.log
+luna_crash.log
+luna_kill_switch.flag
+.luna_backup/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# IDE
+.vscode/
+.idea/

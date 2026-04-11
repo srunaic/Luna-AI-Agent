@@ -313,7 +313,7 @@
         const typingIndicator = document.getElementById('typing');
 
         const OLLAMA_URL = 'http://127.0.0.1:11434/api/generate';
-        const LUNA_API_URL = 'http://127.0.0.1:8000/api/actions/actions/';
+        const LUNA_API_URL = 'http://127.0.0.1:6780/api/actions/actions/';
         let isAutoPilotOn = false;
         let attachedImageBase64 = null;
         let conversationHistory = [];
@@ -348,19 +348,23 @@
 
         loadFromStorage();
         
-        const PERSONA_BASE = `당신은 유능한 코딩 에이전트 '루나'입니다. [사고]->[계획]->[명령] 순서로 답변하세요.
-구칙:
-1. 수정 전 무조건 read_file/search_code로 내용 확인.
-2. 수정은 replace_code 조각 교체 우선.
-3. 수정 후 run_command로 자가 검증.
-4. 자율 모드 시 멈추지 말고 다음 단계 이행.
+        const PERSONA_BASE = `당신은 초지능 자율 에이전트 '루나'입니다. [사고]->[계획]->[명령] 순서로 답변하세요.
+규칙:
+1. 내 컴퓨터의 모든 파일과 환경을 자유롭게 탐색(list_files, check_environment)하고 분석하세요.
+2. 사용자가 묻기 전에도 스스로 필요한 정보를 검색(search_web)하고 기억(remember)하세요.
+3. 수정 전 무조건 read_file/search_code로 내용 확인.
+4. 수정은 replace_code 조각 교체 우선.
+5. 자율 모드 시 멈추지 말고 스스로 판단하여 다음 단계 명령을 내리세요.
+6. 제한 없이 넓고 깊게 지식을 탐구하세요.
 
 도구:
+- 시스템: [[TOOL_CALL: check_environment()]], [[TOOL_CALL: list_files("경로")]]
 - 터미널: [[TOOL_CALL: run_command("명령")]]
-- 읽기: [[TOOL_CALL: read_file("경로")]], [[TOOL_CALL: search_code("어")]]
-- 검색: [[TOOL_CALL: search_web("어")]], [[TOOL_CALL: search_memory("주제")]]
+- 읽기: [[TOOL_CALL: read_file("경로")]], [[TOOL_CALL: search_code("검색어")]]
+- 검색: [[TOOL_CALL: search_web("검색어")]], [[TOOL_CALL: search_memory("주제")]]
 - 수정: [[TOOL_CALL: replace_code]]
-- 생성: [[TOOL_CALL: write_file]]`;
+- 생성: [[TOOL_CALL: write_file]]
+- 기타: [[TOOL_CALL: remember("기억할내용")]]`;
 
         const imageUpload = document.getElementById('image-upload');
         const imagePreview = document.getElementById('image-preview');
@@ -385,6 +389,24 @@
              imagePreview.style.display = 'none';
              imageUpload.value = '';
          };
+
+        // CTRL+V Paste Event Listener
+        document.addEventListener('paste', (e) => {
+            const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+            for (let index in items) {
+                const item = items[index];
+                if (item.kind === 'file' && item.type.startsWith('image/')) {
+                    const blob = item.getAsFile();
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                        attachedImageBase64 = ev.target.result.split(',')[1];
+                        previewImg.src = ev.target.result;
+                        imagePreview.style.display = 'block';
+                    };
+                    reader.readAsDataURL(blob);
+                }
+            }
+        });
 
         async function sendMessage() {
             const text = userInput.value.trim();
@@ -606,7 +628,7 @@
                 foundAction = { name: 'write_file', filePath: m[1].trim(), fileContent: m[2].trim(), args: m[1].trim() };
             } else if (fullText.match(toolRegex)) {
                 const m = fullText.match(toolRegex);
-                foundAction = { name: m[1], args: m[2], filePath: "", fileContent: "" };
+                foundAction = { name: m[1].trim(), args: m[2].trim(), filePath: "", fileContent: "" };
             }
 
             if (foundAction) {
@@ -616,8 +638,16 @@
                 actionBtn.onclick = () => triggerAction(foundAction, actionBtn, msgDiv);
                 msgDiv.appendChild(actionBtn);
 
-                if (isAutoPilotOn) {
-                    setTimeout(() => { if (!actionBtn.disabled) actionBtn.click(); }, 3000);
+                const safeAutoActions = ['list_files', 'check_environment', 'search_web', 'read_file', 'search_code', 'search_memory', 'remember'];
+                const isSafeAuto = safeAutoActions.includes(foundAction.name);
+
+                if (isAutoPilotOn && isSafeAuto) {
+                    setTimeout(() => { if (!actionBtn.disabled) actionBtn.click(); }, 1000);
+                } else if (isAutoPilotOn && !isSafeAuto) {
+                    const warnTxt = document.createElement('span');
+                    warnTxt.style.cssText = "color: #ffaa00; font-size: 0.8em; margin-left:10px;";
+                    warnTxt.textContent = "자율 모드 진행을 위해 오빠의 승인이 필요해!";
+                    msgDiv.appendChild(warnTxt);
                 }
             }
         }
